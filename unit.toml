@@ -1,0 +1,62 @@
+schema = 1
+id = "hub"
+
+[loader]
+image = "hub"
+space = "user"
+args = []
+stack = 0
+
+# Keep this order: the server consumes service/device/DMA capabilities at 0/1/2.
+[[operator.namespace]]
+key = "service"
+placement = "shared"
+path = "hub"
+scope = { names = ["bond", "list", "claim", "retire"] }
+ops = 276 # BIND | UNBIND | FIND
+permit = "public"
+bindings = []
+
+[[operator.namespace]]
+key = "device"
+placement = "shared"
+path = ""
+scope = "subtree"
+ops = 279 # PART | UNPART | BIND | UNBIND | FIND
+bindings = []
+
+[[operator.namespace]]
+key = "service"
+placement = "shared"
+path = "hub"
+scope = { names = ["dma"] }
+ops = 4 # BIND
+permit = "public"
+source_mark = "12856149564454656214" # hub_api::Grant::Dma.mark()
+bindings = []
+
+[identity]
+aliases = []
+grants = [13, 14, 15, 18] # Found, Admit, Expel, Activate
+
+[control]
+creation = "startup"
+# Operator/Identity are System bootstrap services, not separate Units.
+requires = []
+after = []
+ready = { signal = "11560245836811667066" } # hub_api::declaration::READY_MARK
+ending = "resident"
+construction = []
+groups = []
+guarded = false
+
+[[control.retirement]]
+provider = "hub"
+namespace = 0
+face = "retire"
+
+[[supply.bindings]]
+source = "system/initrd"
+resource = "machine/inventory"
+slot = "16084352731174979943" # hub_api::declaration::INVENTORY_MARK
+permission = 1 # env::Permission::FETCH
