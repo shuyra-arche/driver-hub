@@ -18,7 +18,7 @@ adapters. No Instance identity or System call is invented here.
 | Machine | A particular Hub incarnation and its device-resource coordination state. Its identity must never be reused for a fresh, empty domain. |
 | Device | A source-qualified device identity and epoch. A topology coordinate is descriptive; removal/replacement invalidates the old epoch. |
 | Resource | A bounded, typed device resource held by its real provider. Addresses and requester/source numbers describe a conflict domain, not permission. |
-| Allocation | One exclusive reservation and its retained cleanup responsibility. The Machine assigns non-reusing identity; failure cannot silently free its resources. |
+| Allocation | One complete offered resource within a Binding, identified by its non-reusing BindingId and fixed resource slot. Failure cannot silently free the resource or its retained cleanup responsibility. |
 | Binding | The device association and its preparation/retirement obligations. It does not describe whether a System Instance is alive. |
 | Offer | A provider's discoverable description of available resources. Acceptance requires verification by the trusted authority adapter. |
 | Operation | A requester-qualified identity with replayable intent and result. The requester comes from the actual transport, not the request body. |
