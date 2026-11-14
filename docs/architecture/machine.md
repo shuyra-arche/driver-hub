@@ -58,8 +58,10 @@ Reserving -> Preparing -> Active -> Closing -> Retiring -> Closed
 
 An unprepared reservation can close without hardware retirement. Once preparation
 can have created an effect, responsibility is retained before calling an external
-owner. Cancellation, timeout, requester death or delivery failure closes new
-admission and starts cleanup; none proves the effect did not happen. `Active`
+owner. Explicit cancellation or a failure policy enters retained cleanup; neither
+proves the effect did not happen. A timeout or lost reply alone leaves the
+operation uncertain and requires query/replay, not automatic cancellation. The
+integrator must detect requester death and initiate retained cleanup. `Active`
 requires both real delivery and the accepted System/driver contract. Until that
 contract exists, activation is unsupported.
 
