@@ -1,0 +1,48 @@
+name: Native Hub
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install declared toolchain
+        run: rustup toolchain install nightly-2026-09-04 --profile minimal --component rust-src --component rustfmt --component clippy --target riscv64gc-unknown-none-elf
+      - name: Verify formatting, Host contracts and warnings
+        run: |
+          cargo fmt --all -- --check
+          cargo test --workspace --locked --target x86_64-unknown-linux-gnu
+          cargo clippy --workspace --all-targets --locked --target x86_64-unknown-linux-gnu -- -D warnings
+      - name: Verify dependency identity
+        run: |
+          cargo metadata --locked --format-version 1 > "$RUNNER_TEMP/hub-metadata.json"
+          cargo tree --workspace --locked --edges normal,build --target riscv64gc-unknown-none-elf
+          python3 - <<'PY'
+          import json, os, pathlib, tomllib
+          packages = json.loads((pathlib.Path(os.environ['RUNNER_TEMP']) / 'hub-metadata.json').read_text())['packages']
+          dependencies = tomllib.loads(pathlib.Path('Cargo.toml').read_text())['workspace']['dependencies']
+          revision = dependencies['kernel-api']['rev']
+          assert len(revision) == 40 and all(c in '0123456789abcdef' for c in revision)
+          expected = f'git+https://github.com/shuyra-arche/kernel.git?rev={revision}#{revision}'
+          providers = [p for p in packages if p['name'] in {'kernel-api', 'kernel-client', 'kernel-api-macros'}]
+          assert len(providers) == 3 and {p['source'] for p in providers} == {expected}
+          legacy = {'env', 'wire', 'mold', 'ipc', 'resource', 'execution', 'router-api', 'system-api', 'system-client', 'system-support', 'driver-support'}
+          assert not {p['name'] for p in packages} & legacy
+          assert all(p['source'] is None for p in packages if p['name'].startswith('hub-'))
+          print('PASS one immutable Kernel identity; no legacy dependencies or Hub self Git pins')
+          PY
+      - name: Build RV64 libraries in debug and release
+        env:
+          CARGO_TARGET_RISCV64GC_UNKNOWN_NONE_ELF_RUSTFLAGS: -Crelocation-model=static -Cforce-frame-pointers=yes -Ccode-model=medium -Dwarnings
+        run: |
+          cargo build --workspace --locked --target riscv64gc-unknown-none-elf
+          cargo build --workspace --locked --release --target riscv64gc-unknown-none-elf

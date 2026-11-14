@@ -1,19 +1,13 @@
 #![no_std]
 
-//! 设备账那一族的实现侧（Hub 那一台域）。
-//! 设备语义永远在持有那台设备的那一域（`units/…`）。
-//! **核心与适配的边界**（与 operator / coalition 同一条）：核心不调用资源或执行原语、不出现
-//! `View`、不叫盟册；"主人还答得出吗"是喂进去的一个闭包（mail::reserve 那一手在适配层）。
+//! Production coordination library. There is deliberately no executable Unit
+//! until the System/Supply and trusted machine import contracts are available.
 
 extern crate alloc;
 
-#[macro_use]
-extern crate system_support;
+pub mod authority;
+pub mod machine;
+pub mod pci;
+pub mod service;
 
-pub(crate) use system_support::debug;
-
-pub mod core;
-pub mod serve;
-
-mod fault;
-pub use fault::Start;
+pub use machine::{Limits, Machine};

@@ -1,11 +1,16 @@
 [workspace]
-members = ["api", "client", "server", "declaration"]
-exclude = ["tests"]
+members = ["api", "client", "server"]
 resolver = "3"
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
+
+[workspace.dependencies]
+hub-api = { path = "api" }
+weave = { git = "https://github.com/shuyra-arche/weave.git", rev = "7a7d67fb3f190aeb43049d051b0972bcd53213bc" }
+twine = { git = "https://github.com/shuyra-arche/twine.git", rev = "bbab13f5df3e4bad24314cd5a18f19f26452ce66" }
+kernel-api = { git = "https://github.com/shuyra-arche/kernel.git", rev = "b2eb37e2af134e4bb4248df454c437b06c1f93c0" }
 
 [profile.dev]
 panic = "abort"
