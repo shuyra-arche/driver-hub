@@ -15,6 +15,7 @@ use kernel_api::{
         pend::{
             AccordRequest, AccordTarget, Distributable, Limits, PendInfo, PendRange, PendScope,
         },
+        unit::{UnitInfo, UnitQuery, UnitTarget},
     },
 };
 
@@ -128,6 +129,7 @@ pub struct Delivery {
 pub enum Error {
     Invalid,
     Unsupported,
+    Caller,
     Busy,
     Kernel(PendFail),
     InvalidObservation,
@@ -152,10 +154,11 @@ impl Lease {
     /// Create a task-local effect owner without performing Kernel effects.
     ///
     /// # Safety
-    /// The calling Kernel Task must have identity `owner`; `request.source`
+    /// Call this in the Kernel Task whose identity is `owner`; `request.source`
     /// must be an actual local Pend token, never a number copied from an Offer
-    /// or wire request. Keep and use this value only in that same Task until it
-    /// reaches `State::Closed`. The source owner must retain its own duties.
+    /// or wire request. The implementation checks `UnitQuery::Caller` before
+    /// each Kernel effect, but the value must still stay in this Task until it
+    /// reaches `State::Closed`. The source owner retains its own duties.
     pub unsafe fn new_for_current_task(owner: TaskId, request: Request) -> Result<Self, Error> {
         if owner.get() == 0 {
             return Err(Error::Invalid);
@@ -197,6 +200,7 @@ impl Lease {
         match self.state {
             State::RootPending => {
                 let root = accord(
+                    self.owner,
                     self.request.source,
                     AccordTarget::Caller,
                     self.request.mark,
@@ -210,6 +214,7 @@ impl Lease {
                 // Request::new rejects Nest. The private root has already
                 // resolved this relative window; inherit it without shifting.
                 let token = accord(
+                    self.owner,
                     self.root.ok_or(Error::Invalid)?,
                     AccordTarget::Task(self.request.recipient),
                     self.request.mark,
@@ -239,6 +244,7 @@ impl Lease {
             self.state = State::Closed;
             return Ok(self.state);
         };
+        ensure_owner(self.owner)?;
         match kernel_client::call::pend::return_(root) {
             Ok(()) => {
                 self.root = None;
@@ -247,7 +253,7 @@ impl Lease {
             }
             Err(error) if error.source.is_busy() => Err(Error::Busy),
             Err(error) if error.source == PendFail::Denied => {
-                if root_is_absent(root)? {
+                if root_is_absent(self.owner, root)? {
                     self.root = None;
                     self.state = State::Closed;
                     Ok(self.state)
@@ -261,11 +267,13 @@ impl Lease {
 }
 
 fn accord(
+    owner: TaskId,
     source: PendId,
     target: AccordTarget,
     mark: Mark,
     limits: Limits,
 ) -> Result<PendId, Error> {
+    ensure_owner(owner)?;
     let request = AccordRequest {
         src: source,
         target,
@@ -277,6 +285,24 @@ fn accord(
         .map_err(|error| map_kernel(error.source))
 }
 
+fn ensure_owner(owner: TaskId) -> Result<(), Error> {
+    let mut bytes = [0; UnitInfo::WIDTH];
+    let found = kernel_client::call::unit::inspect(
+        UnitQuery::Caller,
+        VirtAddr::new(bytes.as_mut_ptr().addr()),
+    )
+    .map_err(|_| Error::Caller)?;
+    if !found {
+        return Err(Error::Caller);
+    }
+    let info = UnitInfo::from_bytes(&bytes).ok_or(Error::Caller)?;
+    if info.target == UnitTarget::Task(owner) {
+        Ok(())
+    } else {
+        Err(Error::Caller)
+    }
+}
+
 fn root_limits(mut limits: Limits) -> Limits {
     limits.distributable = Distributable::Yes;
     limits
@@ -284,7 +310,8 @@ fn root_limits(mut limits: Limits) -> Limits {
 
 /// Denied from Return is ambiguous. Only a successful, checked local ledger
 /// enumeration can prove that this exact never-transferred root is gone.
-fn root_is_absent(root: PendId) -> Result<bool, Error> {
+fn root_is_absent(owner: TaskId, root: PendId) -> Result<bool, Error> {
+    ensure_owner(owner)?;
     let after = root
         .get()
         .checked_sub(1)
