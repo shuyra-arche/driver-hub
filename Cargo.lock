@@ -38,6 +38,7 @@ dependencies = [
  "hub-api",
  "hub-client",
  "kernel-api",
+ "kernel-client",
  "system-api",
  "system-client",
  "twine",
