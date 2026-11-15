@@ -22,6 +22,27 @@ been accepted.
 - [Machine contract](docs/architecture/machine.md): state ownership, identities,
   commitment, recovery, provider evidence and integration gates.
 
+Machine keeps the single resource and Binding commit boundary. Its
+`machine/instance.rs` coordinates the Driver stored directly in that Binding;
+`driver/native.rs` owns the System SDK calls and reply cleanup. The public
+`authority.rs` stays at the Server root as the trusted platform contract. PCI
+configuration remains an independent effect mechanism, without a second
+resource allocator.
+
+The Server registers these integration-test targets explicitly:
+
+| Target | Entry | Responsibility |
+| --- | --- | --- |
+| `machine` | `tests/machine/mod.rs` | Reservation, identity and retirement |
+| `allocation` | `tests/machine/allocation/mod.rs` | OOM injection in its own executable |
+| `driver` | `tests/driver/mod.rs` | Instance recovery and caller isolation |
+| `pci` | `tests/pci/mod.rs` | Geometry and partial-effect recovery |
+| `service` | `tests/service.rs` | Authenticated ingress and reply routing |
+
+API codec tests remain in `api/tests/`. Shared Host models remain under
+`server/tests/support/`. The OOM target retains its own global allocator and
+must not be folded into another test executable.
+
 Offers describe up to four complete resources; a reservation covers that exact
 device epoch. Descriptions, addresses and Pend numbers never confer authority.
 The trusted `Authority` must validate genuinely imported Hub-local Pends and
@@ -62,6 +83,7 @@ revisions and one Kernel ABI/Ledger 11/11 identity; commit `Cargo.lock`.
 ```sh
 cargo fmt --all -- --check
 cargo test --workspace --locked --target x86_64-unknown-linux-gnu
+cargo test --locked -p hub-server --test allocation --target x86_64-unknown-linux-gnu
 cargo clippy --workspace --all-targets --locked --target x86_64-unknown-linux-gnu -- -D warnings
 cargo metadata --locked --format-version 1
 cargo tree --workspace --locked --edges normal,build --target riscv64gc-unknown-none-elf
@@ -85,6 +107,10 @@ production Driver/Native coordinator against the fixed complete System in QEMU.
 It checks two Driver Teams, real CPU Sign supply, UnitRoot publication, direct
 RPC, replacement and physical Instance retirement. It is a CPU-only consumer
 scenario, not full Hub startup or device retirement acceptance.
+
+See [CI execution and cache boundaries](docs/ci.md) for PR change selection,
+parallel handoff profiles and evidence retention. Cache hits still execute the
+locked build and every selected VM; caches contain no prior VM results.
 
 This is an incompatible 0.x API replacement. Consumers must migrate after the
 provider contract is reviewed and fixed; no legacy forwarding layer is supplied.
