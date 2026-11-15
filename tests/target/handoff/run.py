@@ -53,8 +53,8 @@ def main():
     shutil.copyfile(test / 'Cargo.lock', user / 'Cargo.lock')
     inputs = {
         'system_revision': SYSTEM,
-        'hub_revision': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=hub, text=True).strip(),
-        'hub_dirty': bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=hub)),
+        'hub_revision': subprocess.check_output(['git', '-c', f'safe.directory={hub}', 'rev-parse', 'HEAD'], cwd=hub, text=True).strip(),
+        'hub_dirty': bool(subprocess.check_output(['git', '-c', f'safe.directory={hub}', 'status', '--porcelain'], cwd=hub)),
         'controller_sha256': hashlib.sha256((test / 'controller.rs').read_bytes()).hexdigest(),
         'hub_lock_sha256': hashlib.sha256((hub / 'Cargo.lock').read_bytes()).hexdigest(),
         'note': 'CPU-only Instance consumer; no runnable Hub Machine or hardware authorization proof',

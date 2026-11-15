@@ -14,8 +14,8 @@ requirements. No old SDK capability implementation, user IOMMU or PLIC backend
 is copied into the native Hub. The new mechanism requires separately validated
 platform authorization and retirement; its Host models are not hardware proof.
 
-The CPU-only consumer runner under `tests/target/handoff` reuses the unchanged
-System handoff fixture from
+The CPU-only consumer runner under `tests/target/handoff` reuses the fixed
+System handoff fixture skeleton from
 `shuyra-arche/system@f97524817ce240a0b0471be3b557ceb5a871fe14` in a temporary
 checkout. It injects the Hub controller while retaining the provider's heap,
 test-only Sign source, Driver, packer and lifecycle checker. The provider's Git
