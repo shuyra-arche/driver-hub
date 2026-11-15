@@ -51,6 +51,31 @@ unsafe impl Authority for Model {
         }
         Ok(())
     }
+    fn check_start(
+        &mut self,
+        requester: TaskId,
+        provider: TaskId,
+        offer: &Offer,
+        delivered: u8,
+    ) -> Result<(), Fail> {
+        let expected = ((1u16 << offer.count) - 1) as u8;
+        if delivered != expected {
+            return Err(Fail::Busy);
+        }
+        if (requester != DRIVER && requester != TaskId::new(10))
+            || provider != PROVIDER
+            || self.revoked.load(Ordering::SeqCst)
+        {
+            return Err(Fail::Denied);
+        }
+        if offer.resources[..offer.count as usize]
+            .iter()
+            .any(|resource| resource.pend != 17)
+        {
+            return Err(Fail::Denied);
+        }
+        Ok(())
+    }
     fn check_retirement(
         &mut self,
         owner: TaskId,

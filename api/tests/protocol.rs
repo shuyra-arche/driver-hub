@@ -70,3 +70,31 @@ fn tagged_error_response_has_no_authorizing_handle() {
     assert_eq!(reply.snapshot.binding.serial, 0);
     assert_eq!(reply.snapshot.device.id.serial, 0);
 }
+
+#[test]
+fn signal_resource_kind_roundtrips_as_its_own_tag() {
+    let mut value = offer();
+    value.count = 1;
+    value.resources[0] = ResourceSpec {
+        kind: ResourceKind::Signal,
+        domain: 9,
+        start: 0,
+        len: 1,
+        pend: 31,
+        rights: 2,
+    };
+    let request = machine::Request::Offer(OfferRequest {
+        header: Header {
+            operation: 12,
+            reply: 13,
+        },
+        offer: value,
+    });
+    let mut bytes = [0; REQUEST_CAPACITY];
+    let used = request.encode(&mut bytes).unwrap();
+    assert!(matches!(
+        machine::Request::decode_exact(&bytes[..used]),
+        Some(machine::DecodedRequest::Offer(decoded))
+            if decoded.offer.resources[0].kind == ResourceKind::Signal
+    ));
+}

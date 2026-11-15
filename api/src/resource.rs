@@ -9,6 +9,7 @@ pub enum ResourceKind {
     External = 4,
     Reset = 5,
     Power = 6,
+    Signal = 7,
 }
 
 /// An owner-qualified range description. `pend` names an already Accorded

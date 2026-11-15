@@ -1,5 +1,36 @@
 use hub_api::{DeviceRef, Fail, Offer, ResourceSpec, Retirement};
-use kernel_api::model::identity::TaskId;
+use kernel_api::model::identity::{Mark, TaskId};
+
+use crate::lease;
+
+pub mod native;
+
+/// A trusted executor's internal request to derive one offered resource for a
+/// recipient selected from a fresh driver observation. This is not wire input;
+/// the executor must correlate it with the current Machine allocation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GrantRequest {
+    pub requester: TaskId,
+    pub provider: TaskId,
+    pub correlation: lease::Correlation,
+    pub resource: ResourceSpec,
+    pub recipient: TaskId,
+    pub mark: Mark,
+}
+
+/// Extension for trusted executors that request Machine-owned native grants.
+///
+/// # Safety
+/// Returned requests must originate only from trusted live policy and an
+/// imported source local to `owner`. The Machine executor must turn each
+/// request into the unique lease for its exact `(device epoch, allocation,
+/// slot, attempt)`. Implementations and executors must prevent parallel or
+/// unrecorded grants for that correlation; a lease returning Closed proves
+/// only that branch was withdrawn and cannot alone clear Authorization duties.
+pub unsafe trait SupplyAuthority: Authority {
+    fn owner(&self) -> TaskId;
+    fn lease_request(&mut self, request: GrantRequest) -> Result<lease::Request, Fail>;
+}
 
 /// Trusted platform adapter, separate from descriptions and coordination state.
 /// This repository supplies no permissive default implementation.
@@ -34,6 +65,16 @@ pub unsafe trait Authority {
         provider: TaskId,
         device: DeviceRef,
         offer: &Offer,
+    ) -> Result<(), Fail>;
+
+    /// Revalidate live source and policy before starting the Instance.
+    /// `delivered` is a slot bitmask, not evidence of Kernel authority itself.
+    fn check_start(
+        &mut self,
+        requester: TaskId,
+        provider: TaskId,
+        offer: &Offer,
+        delivered: u8,
     ) -> Result<(), Fail>;
 
     /// Check completed owner evidence; this check must not initiate retirement
