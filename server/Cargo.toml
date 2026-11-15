@@ -12,6 +12,8 @@ hub-api.workspace = true
 kernel-api.workspace = true
 twine.workspace = true
 weave.workspace = true
+system-api.workspace = true
+system-client.workspace = true
 
 [dev-dependencies]
 hub-client = { path = "../client" }

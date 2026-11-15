@@ -17,6 +17,8 @@ been accepted.
 - `client/`: generated typed calls with real Twine Clone/one-shot Reply transport.
 - `server/`: the production `no_std` Machine, authenticated native request adapter
   and internal PCI mechanism. Package integration tests live under `tests/`.
+- [Driver Instance contract](docs/architecture/driver.md): consumption of the
+  fixed System Instance v1 subset, operation uncertainty and independent duties.
 - [Machine contract](docs/architecture/machine.md): state ownership, identities,
   commitment, recovery, provider evidence and integration gates.
 
@@ -37,8 +39,9 @@ existing queries, replay and retirement can continue.
 
 Preparation records retirement duties before effects. Cancellation, failure and
 withdrawal preserve reservations until the exact owners establish device,
-authorization and Instance retirement. No Active transition, System InstanceId,
-Supply call or restart takeover is fabricated before S2. On Hub death, the
+authorization and Instance retirement. System #19 now supplies real InstanceId
+and the caller-owned Instance v1 contract; the Hub consumer uses that fixed
+subset. Native resource Supply and restart takeover remain separate work. On Hub death, the
 integration owner must retain obligations or quarantine resources until real
 retirement; a new incarnation ID alone is insufficient.
 
@@ -52,7 +55,7 @@ unimplemented; no PCI/Router/IOMMU Unit or repository is retired by this change.
 
 ## Build and verify
 
-Install Rust through rustup. The checkout pins `nightly-2026-09-04`, Rust source,
+Install Rust through rustup. The checkout pins `nightly-2026-11-13`, Rust source,
 rustfmt, Clippy and `riscv64gc-unknown-none-elf`. Git dependencies use immutable
 revisions and one Kernel ABI/Ledger 11/11 identity; commit `Cargo.lock`.
 
@@ -76,6 +79,12 @@ reply routing and partial PCI effects. Scripted Authority/transport/configuratio
 models do not prove real Pend delivery, hardware isolation or MMIO ordering.
 RV64 library compilation proves neither a runnable Unit nor QEMU execution.
 Vanllia owns the separate one/multi-Hart QEMU and hardware acceptance gates.
+
+The [native Instance consumer](tests/target/handoff/README.md) runs Hub's
+production Driver/Native coordinator against the fixed complete System in QEMU.
+It checks two Driver Teams, real CPU Sign supply, UnitRoot publication, direct
+RPC, replacement and physical Instance retirement. It is a CPU-only consumer
+scenario, not full Hub startup or device retirement acceptance.
 
 This is an incompatible 0.x API replacement. Consumers must migrate after the
 provider contract is reviewed and fixed; no legacy forwarding layer is supplied.

@@ -168,11 +168,13 @@ preconditions. The mechanism has no validated runtime supply or QEMU evidence.
 | User IOMMU tables/queues/fence | Kernel External Nest and trusted retirement provider. Do not move these hardware authorities into Hub. |
 | Hub execution admission and fixed `/dev` publication | System Instance supervision/Supply and driver-owned UnitRoot services, after S2 is frozen. |
 
-The exact System S2 contract is not available at the inspected revisions. Before
-the consumer integration, its provider must publish and validate InstanceId,
-operation results, target-specific Supply and UnitRoot APIs. The handoff must
-cover accepted requests with lost replies, bilateral authorization, stale epochs,
-cancellation, Busy cleanup and either side dying first.
+The initial provider survey above predates System #19. A bounded caller-owned
+Instance v1 contract is now published at System
+`f97524817ce240a0b0471be3b557ceb5a871fe14`; the
+[Driver Instance contract](driver.md) records its selected graph and Hub consumer
+boundary. Full System S1/S2 acceptance remains open, while the published subset
+can be consumed now. Hardware configuration custody and actual Hub-owned resource
+delivery are independent of that Instance contract.
 
 The merge order is provider contract, Hub consumer, then Vanllia pins/lock and
 integration. Vanllia #39 owns the unified progress and Host/RV64/QEMU/hardware

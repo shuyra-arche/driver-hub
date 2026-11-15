@@ -16,7 +16,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install declared toolchain
-        run: rustup toolchain install nightly-2026-09-04 --profile minimal --component rust-src --component rustfmt --component clippy --target riscv64gc-unknown-none-elf
+        run: rustup toolchain install nightly-2026-11-13 --profile minimal --component rust-src --component rustfmt --component clippy --target riscv64gc-unknown-none-elf
       - name: Verify formatting, Host contracts and warnings
         run: |
           cargo fmt --all -- --check
@@ -35,7 +35,10 @@ jobs:
           expected = f'git+https://github.com/shuyra-arche/kernel.git?rev={revision}#{revision}'
           providers = [p for p in packages if p['name'] in {'kernel-api', 'kernel-client', 'kernel-api-macros'}]
           assert len(providers) == 3 and {p['source'] for p in providers} == {expected}
-          legacy = {'env', 'wire', 'mold', 'ipc', 'resource', 'execution', 'router-api', 'system-api', 'system-client', 'system-support', 'driver-support'}
+          system = [p for p in packages if p['name'] in {'system-api', 'system-client'}]
+          system_revision = 'f97524817ce240a0b0471be3b557ceb5a871fe14'
+          assert len(system) == 2 and {p['source'] for p in system} == {f'git+https://github.com/shuyra-arche/system.git?rev={system_revision}#{system_revision}'}
+          legacy = {'env', 'wire', 'mold', 'ipc', 'resource', 'execution', 'router-api', 'driver-support'}
           assert not {p['name'] for p in packages} & legacy
           assert all(p['source'] is None for p in packages if p['name'].startswith('hub-'))
           print('PASS one immutable Kernel identity; no legacy dependencies or Hub self Git pins')
@@ -46,3 +49,48 @@ jobs:
         run: |
           cargo build --workspace --locked --target riscv64gc-unknown-none-elf
           cargo build --workspace --locked --release --target riscv64gc-unknown-none-elf
+
+  handoff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container: debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [debug, release]
+    env:
+      QEMU_RISCV64: qemu-system-riscv64
+      QEMU_OPENSBI: /usr/lib/riscv64-linux-gnu/opensbi/generic/fw_dynamic.bin
+      RUSTFLAGS: -Crelocation-model=static -Cforce-frame-pointers=yes -Ccode-model=medium -Dwarnings
+    steps:
+      - name: Install build tools and QEMU
+        run: |
+          apt-get update
+          apt-get install --no-install-recommends -y ca-certificates curl gcc git libc6-dev opensbi python3 qemu-system-misc
+          qemu-system-riscv64 --version
+          sha256sum "$QEMU_OPENSBI"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install declared toolchain
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh
+          sh /tmp/rustup-init.sh -y --profile minimal --default-toolchain none
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          "$HOME/.cargo/bin/rustup" show
+      - name: Build the fixed instruction-qualified platform
+        run: |
+          git clone https://github.com/shuyra-arche/system.git "$RUNNER_TEMP/system"
+          git -C "$RUNNER_TEMP/system" checkout --detach f97524817ce240a0b0471be3b557ceb5a871fe14
+          cargo build --locked --manifest-path "$RUNNER_TEMP/system/tests/guest/runtime/platform/Cargo.toml" --features instructions --target-dir "$RUNNER_TEMP/platform" --release --target riscv64gc-unknown-none-elf
+      - name: Run the real Hub Instance consumer on one, two and four Harts
+        run: python3 tests/target/handoff/run.py "$RUNNER_TEMP/platform/riscv64gc-unknown-none-elf/release/system-runtime-platform" --system-checkout "$RUNNER_TEMP/system" --profile ${{ matrix.profile }} --harts 1 2 4
+      - name: Preserve native consumer evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: hub-handoff-${{ matrix.profile }}
+          path: |
+            tests/target/handoff/target/inputs.json
+            tests/target/handoff/target/system/tests/guest/system/target/handoff/
+          if-no-files-found: error

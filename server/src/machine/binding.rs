@@ -10,6 +10,7 @@ pub(super) struct Binding {
     pub attempt: u64,
     pub fault: u32,
     pub completed: [Option<(TaskId, u64)>; 12],
+    pub driver: Option<crate::driver::Driver>,
 }
 
 impl Binding {

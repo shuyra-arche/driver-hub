@@ -38,6 +38,8 @@ dependencies = [
  "hub-api",
  "hub-client",
  "kernel-api",
+ "system-api",
+ "system-client",
  "twine",
  "weave",
 ]
@@ -45,7 +47,7 @@ dependencies = [
 [[package]]
 name = "kernel-api"
 version = "0.0.1"
-source = "git+https://github.com/shuyra-arche/kernel.git?rev=b2eb37e2af134e4bb4248df454c437b06c1f93c0#b2eb37e2af134e4bb4248df454c437b06c1f93c0"
+source = "git+https://github.com/shuyra-arche/kernel.git?rev=684f479c45dc2d94d405b32b4ffc6334a4233fc9#684f479c45dc2d94d405b32b4ffc6334a4233fc9"
 dependencies = [
  "bitflags",
  "erra",
@@ -55,7 +57,7 @@ dependencies = [
 [[package]]
 name = "kernel-api-macros"
 version = "0.0.1"
-source = "git+https://github.com/shuyra-arche/kernel.git?rev=b2eb37e2af134e4bb4248df454c437b06c1f93c0#b2eb37e2af134e4bb4248df454c437b06c1f93c0"
+source = "git+https://github.com/shuyra-arche/kernel.git?rev=684f479c45dc2d94d405b32b4ffc6334a4233fc9#684f479c45dc2d94d405b32b4ffc6334a4233fc9"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -65,7 +67,7 @@ dependencies = [
 [[package]]
 name = "kernel-client"
 version = "0.0.1"
-source = "git+https://github.com/shuyra-arche/kernel.git?rev=b2eb37e2af134e4bb4248df454c437b06c1f93c0#b2eb37e2af134e4bb4248df454c437b06c1f93c0"
+source = "git+https://github.com/shuyra-arche/kernel.git?rev=684f479c45dc2d94d405b32b4ffc6334a4233fc9#684f479c45dc2d94d405b32b4ffc6334a4233fc9"
 dependencies = [
  "erra",
  "kernel-api",
@@ -101,9 +103,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "system-api"
+version = "0.4.0"
+source = "git+https://github.com/shuyra-arche/system.git?rev=f97524817ce240a0b0471be3b557ceb5a871fe14#f97524817ce240a0b0471be3b557ceb5a871fe14"
+dependencies = [
+ "kernel-api",
+ "weave",
+]
+
+[[package]]
+name = "system-client"
+version = "0.4.0"
+source = "git+https://github.com/shuyra-arche/system.git?rev=f97524817ce240a0b0471be3b557ceb5a871fe14#f97524817ce240a0b0471be3b557ceb5a871fe14"
+dependencies = [
+ "erra",
+ "kernel-api",
+ "kernel-client",
+ "system-api",
+ "twine",
+ "weave",
+]
+
+[[package]]
 name = "twine"
 version = "0.4.0"
-source = "git+https://github.com/shuyra-arche/twine.git?rev=bbab13f5df3e4bad24314cd5a18f19f26452ce66#bbab13f5df3e4bad24314cd5a18f19f26452ce66"
+source = "git+https://github.com/shuyra-arche/twine.git?rev=8c68cbeffd024b4105a6a7c2f4baaab330994ca1#8c68cbeffd024b4105a6a7c2f4baaab330994ca1"
 dependencies = [
  "erra",
  "kernel-api",

@@ -1,6 +1,9 @@
 mod binding;
 mod device;
+mod driver;
 mod operation;
+
+pub use driver::DriverError;
 
 use alloc::vec::Vec;
 use hub_api::{
@@ -253,6 +256,7 @@ impl<A: Authority> Machine<A> {
             attempt: 0,
             fault: 0,
             completed: [None; 12],
+            driver: None,
         };
         let snapshot = binding.snapshot();
         self.bindings.push(binding);
@@ -285,7 +289,8 @@ impl<A: Authority> Machine<A> {
 
     /// Trusted executor calls this before *any* external preparation effect.
     /// This only records responsibility; it neither constructs an Instance nor
-    /// enables a device. There is deliberately no Active transition before S2.
+    /// enables a device. Driver uses the fixed System Instance contract, while
+    /// hardware/authorized delivery gates still prevent an Active transition.
     pub fn begin_preparation(&mut self, id: BindingId) -> Result<Snapshot, Fail> {
         if self.settling {
             return Err(Fail::Busy);
@@ -338,6 +343,11 @@ impl<A: Authority> Machine<A> {
     pub fn retire(&mut self, owner: TaskId, evidence: Retirement) -> Result<Snapshot, Fail> {
         let index = self.binding_index(evidence.allocation.binding)?;
         let binding = &self.bindings[index];
+        if evidence.duty == hub_api::Duty::Instance && binding.driver.is_some() {
+            // Bound System responsibility is settled only by this Binding's
+            // authenticated Driver coordinator, never an arbitrary receipt ID.
+            return Err(Fail::Denied);
+        }
         if binding.device != evidence.device || binding.attempt != evidence.attempt {
             return Err(Fail::Stale);
         }
