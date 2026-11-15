@@ -1,9 +1,9 @@
 mod binding;
 mod device;
-mod driver;
+mod instance;
 mod operation;
 
-pub use driver::DriverError;
+pub use instance::DriverError;
 
 use alloc::vec::Vec;
 use hub_api::{

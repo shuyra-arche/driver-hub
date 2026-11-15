@@ -3,6 +3,7 @@ name = "hub-server"
 version.workspace = true
 edition.workspace = true
 publish = false
+autotests = false
 
 [lib]
 doctest = false
@@ -17,3 +18,23 @@ system-client.workspace = true
 
 [dev-dependencies]
 hub-client = { path = "../client" }
+
+[[test]]
+name = "allocation"
+path = "tests/machine/allocation/mod.rs"
+
+[[test]]
+name = "driver"
+path = "tests/driver/mod.rs"
+
+[[test]]
+name = "machine"
+path = "tests/machine/mod.rs"
+
+[[test]]
+name = "pci"
+path = "tests/pci/mod.rs"
+
+[[test]]
+name = "service"
+path = "tests/service.rs"

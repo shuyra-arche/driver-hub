@@ -1,5 +1,4 @@
-mod support;
-
+use super::support::*;
 use hub_api::*;
 use hub_server::{
     driver::{self, Command, Control, Driver, Kind, Response},
@@ -7,7 +6,6 @@ use hub_server::{
 };
 use kernel_api::model::wait::Wait;
 use std::collections::VecDeque;
-use support::*;
 use system_api::{
     control::instance as api,
     identity::{PrincipalId, Subject},
@@ -349,7 +347,7 @@ fn another_caller_on_same_system_cannot_substitute_its_terminal_receipt() {
 
 #[test]
 fn machine_can_retry_known_unsent_create_and_can_close_without_submitted_work() {
-    let mut machine = machine();
+    let mut machine = super::support::machine();
     let device = enroll(&mut machine);
     let binding = reserve(&mut machine, device);
     let mut control = Script {
@@ -369,7 +367,7 @@ fn machine_can_retry_known_unsent_create_and_can_close_without_submitted_work() 
         .unwrap();
     assert_eq!(retried.pending.unwrap().id, id(2));
 
-    let mut machine = support::machine();
+    let mut machine = super::support::machine();
     let device = enroll(&mut machine);
     let binding = reserve(&mut machine, device);
     let mut exhausted = Script {
