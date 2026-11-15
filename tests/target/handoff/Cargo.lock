@@ -33,6 +33,7 @@ version = "0.2.0"
 dependencies = [
  "hub-api",
  "kernel-api",
+ "kernel-client",
  "system-api",
  "system-client",
  "twine",

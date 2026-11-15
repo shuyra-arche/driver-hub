@@ -27,7 +27,9 @@ Machine keeps the single resource and Binding commit boundary. Its
 `driver/native.rs` owns the System SDK calls and reply cleanup. The public
 `authority.rs` stays at the Server root as the trusted platform contract. PCI
 configuration remains an independent effect mechanism, without a second
-resource allocator.
+resource allocator. The [native lease contract](docs/architecture/lease.md) keeps
+a private Kernel Pend branch and its cleanup responsibility in one Task-local
+owner. It does not replace Machine reservations or platform Authority.
 
 The Server registers these integration-test targets explicitly:
 
@@ -37,6 +39,7 @@ The Server registers these integration-test targets explicitly:
 | `allocation` | `tests/machine/allocation/mod.rs` | OOM injection in its own executable |
 | `driver` | `tests/driver/mod.rs` | Instance recovery and caller isolation |
 | `pci` | `tests/pci/mod.rs` | Geometry and partial-effect recovery |
+| `lease` | `tests/lease.rs` | Native lease request boundaries (Host only) |
 | `service` | `tests/service.rs` | Authenticated ingress and reply routing |
 
 API codec tests remain in `api/tests/`. Shared Host models remain under
@@ -62,7 +65,8 @@ Preparation records retirement duties before effects. Cancellation, failure and
 withdrawal preserve reservations until the exact owners establish device,
 authorization and Instance retirement. System #19 now supplies real InstanceId
 and the caller-owned Instance v1 contract; the Hub consumer uses that fixed
-subset. Native resource Supply and restart takeover remain separate work. On Hub death, the
+subset. The native lease mechanism owns private Pend branches; native platform Authority,
+resource import, System Supply integration and restart takeover remain separate work. On Hub death, the
 integration owner must retain obligations or quarantine resources until real
 retirement; a new incarnation ID alone is insufficient.
 
@@ -104,8 +108,9 @@ Vanllia owns the separate one/multi-Hart QEMU and hardware acceptance gates.
 
 The [native Instance consumer](tests/target/handoff/README.md) runs Hub's
 production Driver/Native coordinator against the fixed complete System in QEMU.
-It checks two Driver Teams, real CPU Sign supply, UnitRoot publication, direct
-RPC, replacement and physical Instance retirement. It is a CPU-only consumer
+It checks two Driver Teams, Hub-owned native CPU Sign leases, UnitRoot publication, direct
+RPC, replacement, cancellation before delivery, ancestor revocation, repeated
+delivery progress and physical Instance retirement. It is a CPU-only consumer
 scenario, not full Hub startup or device retirement acceptance.
 
 See [CI execution and cache boundaries](docs/ci.md) for PR change selection,

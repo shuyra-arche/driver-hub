@@ -46,6 +46,11 @@ def main():
     text = text.replace('fn controller(license: PendId, context: Context, role: usize) {',
                         'fn controller(license: PendId, context: Context, role: usize) {\n    if role == 0 { hub::controller(license, context); return; }')
     text = text.replace('use alloc::{string::String, vec};', f'#[path = "{test / "controller.rs"}"]\nmod hub;\nuse alloc::{{string::String, vec}};')
+    # Tighten the retained provider Driver probe: only native denial proves
+    # the withdrawn recipient token is unusable, not an unrelated failure.
+    old = 'assert!(!error.source.is_busy(), "Busy is not revocation evidence");'
+    assert text.count(old) == 1, 'provider withdrawal probe changed'
+    text = text.replace(old, 'assert_eq!(error.source, kernel_api::abi::call::sign::SignFail::Denied);')
     main.write_text(text)
     runner = overlay / 'tests/guest/system/run.py'
     text = runner.read_text().replace("(('handoff', 'auth', 'cancel', 'death') if args.handoff else (0, 2, 1))", "(('handoff',) if args.handoff else (0, 2, 1))")
@@ -71,7 +76,11 @@ def main():
     if result.returncode:
         raise SystemExit(result.returncode)
     logs = set(evidence.rglob('users-handoff-harts-*.log')) - previous_logs
-    assert logs and all(b'PASS hub-consumer native=1' in path.read_bytes() for path in logs), 'missing Hub consumer assertion'
+    assert logs and all(
+        b'PASS hub-consumer native=1' in path.read_bytes()
+        and b'PASS hub-lease native=1 replay=1 cancel=1 ancestor-revoke=1 withdrawal=1' in path.read_bytes()
+        for path in logs
+    ), 'missing Hub consumer or native lease assertion'
 
 
 if __name__ == '__main__':
