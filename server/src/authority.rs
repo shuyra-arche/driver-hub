@@ -5,6 +5,25 @@ use crate::lease;
 
 pub mod native;
 
+/// Read-only delivery progress, never a live authorization observation.
+pub trait SupplyRecord {
+    fn delivered(&self) -> bool;
+}
+impl SupplyRecord for lease::Lease {
+    fn delivered(&self) -> bool {
+        self.delivery().is_some()
+    }
+}
+
+/// Uninhabited storage for external grant owners. Actual native Lease storage
+/// stays Task-local; a coordinator without native grants can remain Send.
+pub enum NoSupply {}
+impl SupplyRecord for NoSupply {
+    fn delivered(&self) -> bool {
+        match *self {}
+    }
+}
+
 /// A trusted executor's internal request to derive one offered resource for a
 /// recipient selected from a fresh driver observation. This is not wire input;
 /// the executor must correlate it with the current Machine allocation.
@@ -25,9 +44,10 @@ pub struct GrantRequest {
 /// imported source local to `owner`. The Machine executor must turn each
 /// request into the unique lease for its exact `(device epoch, allocation,
 /// slot, attempt)`. Implementations and executors must prevent parallel or
-/// unrecorded grants for that correlation; a lease returning Closed proves
-/// only that branch was withdrawn and cannot alone clear Authorization duties.
-pub unsafe trait SupplyAuthority: Authority {
+/// unrecorded grants for that correlation. Only under this sole-owner contract
+/// may Machine discharge that exact slot's managed Authorization duty after
+/// Lease::Closed; Device, source and Instance duties remain independent.
+pub unsafe trait SupplyAuthority: Authority<Supply = lease::Lease> {
     fn owner(&self) -> TaskId;
     fn lease_request(&mut self, request: GrantRequest) -> Result<lease::Request, Fail>;
 }
@@ -51,6 +71,8 @@ pub unsafe trait SupplyAuthority: Authority {
 /// retaining responsibility. The adapter must hold or transfer unfinished
 /// authority and hardware duties across failure; dropping Machine is no release.
 pub unsafe trait Authority {
+    type Supply: SupplyRecord;
+
     /// Pure authorization/provenance check. Must not acquire capabilities,
     /// change hardware, start an Instance or create any external responsibility.
     /// Existing imported Pends remain held by the adapter on either result.

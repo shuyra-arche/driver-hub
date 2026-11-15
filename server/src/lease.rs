@@ -90,6 +90,10 @@ impl Request {
         self.recipient
     }
 
+    pub const fn mark(self) -> Mark {
+        self.mark
+    }
+
     /// Requested Kernel rights, always non-distributable at the recipient.
     pub const fn limits(self) -> Limits {
         self.limits
@@ -179,6 +183,11 @@ impl Lease {
 
     pub const fn correlation(&self) -> Correlation {
         self.request.correlation
+    }
+
+    /// Retained immutable intent, not a fresh authorization observation.
+    pub const fn request(&self) -> Request {
+        self.request
     }
 
     pub const fn state(&self) -> State {

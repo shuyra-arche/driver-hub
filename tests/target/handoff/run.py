@@ -62,7 +62,7 @@ def main():
         'hub_dirty': bool(subprocess.check_output(['git', '-c', f'safe.directory={hub}', 'status', '--porcelain'], cwd=hub)),
         'controller_sha256': hashlib.sha256((test / 'controller.rs').read_bytes()).hexdigest(),
         'hub_lock_sha256': hashlib.sha256((hub / 'Cargo.lock').read_bytes()).hexdigest(),
-        'note': 'CPU-only Instance consumer; no runnable Hub Machine or hardware authorization proof',
+        'note': 'CPU-only Machine/Signal/Instance consumer; no standalone Hub Unit or hardware authorization proof',
     }
     (target / 'inputs.json').write_text(json.dumps(inputs, indent=2) + '\n')
     command = ['python3', runner, args.kernel.resolve(), '--handoff', '--profile', args.profile,
@@ -79,6 +79,7 @@ def main():
     assert logs and all(
         b'PASS hub-consumer native=1' in path.read_bytes()
         and b'PASS hub-lease native=1 replay=1 cancel=1 ancestor-revoke=1 withdrawal=1' in path.read_bytes()
+        and b'PASS hub-machine native-authority=1 prepared-target=1 slots=2 managed-revoke=1 retained-device=1' in path.read_bytes()
         for path in logs
     ), 'missing Hub consumer or native lease assertion'
 

@@ -9,6 +9,7 @@ pub enum ResourceKind {
     External = 4,
     Reset = 5,
     Power = 6,
+    /// Device-associated CPU notification; no IRQ, reset or hardware semantics.
     Signal = 7,
 }
 

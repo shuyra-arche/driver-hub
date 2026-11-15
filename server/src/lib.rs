@@ -1,9 +1,9 @@
 #![no_std]
 
-//! Production coordination library. It includes a Task-local native Pend
-//! lease primitive, but no trusted machine import, native Authority, complete
-//! resource Supply wiring or executable Unit. Driver consumes the pinned
-//! System Instance SDK.
+//! Production coordination library with Task-local CPU Signal import/Authority,
+//! allocation-owned native leases and the pinned System Instance consumer.
+//! Hardware import/retirement, full System Supply integration and an executable
+//! Hub Unit still require their own validated contracts.
 
 extern crate alloc;
 

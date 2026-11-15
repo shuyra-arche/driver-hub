@@ -1,7 +1,7 @@
 use hub_api::{BindingId, BindingState, DeviceRef, Duty, Snapshot};
 use kernel_api::model::identity::TaskId;
 
-pub(super) struct Binding {
+pub(super) struct Binding<S> {
     pub id: BindingId,
     pub device: DeviceRef,
     pub requester: TaskId,
@@ -11,9 +11,10 @@ pub(super) struct Binding {
     pub fault: u32,
     pub completed: [Option<(TaskId, u64)>; 12],
     pub driver: Option<crate::driver::Driver>,
+    pub supplies: [Option<S>; hub_api::MAX_RESOURCES],
 }
 
-impl Binding {
+impl<S> Binding<S> {
     pub fn snapshot(&self) -> Snapshot {
         Snapshot {
             device: self.device,

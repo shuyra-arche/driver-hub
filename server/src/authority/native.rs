@@ -30,7 +30,8 @@ use crate::{
 /// Construction asserts provenance that cannot be recovered from the Pend:
 /// the platform chose the unique canonical `resource` and `sign` mapping,
 /// `provider` is the immediate delegating Task, `requester` is authorized to
-/// reserve it, and `object_owner` is the trusted owner of the Sign object. The token must be a
+/// reserve it, and `object_owner` is the trusted owner of the Sign object.
+/// The token must be a
 /// real Pend directly accorded into the Hub Task and must remain owned and
 /// retained by this import's caller. This proves no interrupt, device, or
 /// hardware semantics. The caller retains source duties after import.
@@ -113,11 +114,9 @@ impl Native {
         }
         for (index, import) in imports.iter().enumerate() {
             if imports[..index].iter().any(|old| {
-                old.resource == import.resource
+                old.resource.domain == import.resource.domain
+                    || old.sign == import.sign
                     || old.token == import.token
-                    || (old.provider == import.provider
-                        && old.resource.domain == import.resource.domain
-                        && old.resource.start == import.resource.start)
             }) {
                 return Err(Fail::Conflict);
             }
@@ -155,6 +154,12 @@ impl Native {
         if count == 0 || count > offer.resources.len() {
             return Err(Fail::Invalid);
         }
+        if offer.resources[..count]
+            .iter()
+            .any(|resource| resource.kind != ResourceKind::Signal)
+        {
+            return Err(Fail::Unsupported);
+        }
         for resource in &offer.resources[..count] {
             let import = self
                 .imports
@@ -191,6 +196,8 @@ impl Native {
 }
 
 unsafe impl Authority for Native {
+    type Supply = lease::Lease;
+
     fn check_offer(&mut self, provider: TaskId, offer: &Offer) -> Result<(), Fail> {
         self.offered_imports(provider, offer)
     }
