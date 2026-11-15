@@ -22,6 +22,8 @@ pub struct Model {
 // Host-only owner model: it tests the coordinator's boundary calls and retained
 // duties. It deliberately does not claim Kernel/Pend or hardware validation.
 unsafe impl Authority for Model {
+    type Supply = hub_server::authority::NoSupply;
+
     fn check_offer(&mut self, provider: TaskId, offer: &Offer) -> Result<(), Fail> {
         self.admissions.fetch_add(1, Ordering::SeqCst);
         if provider != PROVIDER
@@ -47,6 +49,29 @@ unsafe impl Authority for Model {
             return Err(Fail::Denied);
         }
         if provider != PROVIDER || self.revoked.load(Ordering::SeqCst) {
+            return Err(Fail::Denied);
+        }
+        Ok(())
+    }
+    fn check_start(
+        &mut self,
+        requester: TaskId,
+        provider: TaskId,
+        offer: &Offer,
+        _delivered: u8,
+    ) -> Result<(), Fail> {
+        // This pre-existing Host owner models external preparation, not native
+        // Lease delivery. Native's full-slot gate is verified in the guest.
+        if (requester != DRIVER && requester != TaskId::new(10))
+            || provider != PROVIDER
+            || self.revoked.load(Ordering::SeqCst)
+        {
+            return Err(Fail::Denied);
+        }
+        if offer.resources[..offer.count as usize]
+            .iter()
+            .any(|resource| resource.pend != 17)
+        {
             return Err(Fail::Denied);
         }
         Ok(())

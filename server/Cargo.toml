@@ -25,6 +25,10 @@ name = "allocation"
 path = "tests/machine/allocation/mod.rs"
 
 [[test]]
+name = "authority"
+path = "tests/authority.rs"
+
+[[test]]
 name = "driver"
 path = "tests/driver/mod.rs"
 

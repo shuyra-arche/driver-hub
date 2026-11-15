@@ -13,12 +13,12 @@ use system_api::{
     value::{Optional, Outcome},
 };
 
-struct Script {
+pub(super) struct Script {
     peer: system_api::TaskId,
     caller: system_api::TaskId,
     next: u64,
     not_submitted: bool,
-    responses: VecDeque<Result<Response, ()>>,
+    pub(super) responses: VecDeque<Result<Response, ()>>,
     seen: Vec<(&'static str, u64, Option<api::InstanceId>)>,
 }
 impl Default for Script {
@@ -65,20 +65,20 @@ unsafe impl Control for Script {
 fn id(n: u64) -> api::OperationId {
     api::OperationId::new(n).unwrap()
 }
-fn instance(n: u64) -> api::InstanceId {
+pub(super) fn instance(n: u64) -> api::InstanceId {
     api::InstanceId {
         system: system_api::TaskId::new(100),
         sequence: api::Sequence::new(n).unwrap(),
     }
 }
-fn input() -> loader::Input {
+pub(super) fn input() -> loader::Input {
     loader::Input::Unit(loader::UnitInput {
         name: system_api::Name::new("driver").unwrap(),
         stack: 4096,
         arguments: loader::Arguments { values: vec![] },
     })
 }
-fn subject() -> Subject {
+pub(super) fn subject() -> Subject {
     Subject::new(
         PrincipalId {
             authority: system_api::TaskId::new(2),
@@ -88,7 +88,11 @@ fn subject() -> Subject {
     )
     .unwrap()
 }
-fn result(n: u64, target: Option<api::InstanceId>, state: api::State) -> Result<Response, ()> {
+pub(super) fn result(
+    n: u64,
+    target: Option<api::InstanceId>,
+    state: api::State,
+) -> Result<Response, ()> {
     Ok(Response::Receipt(Outcome::Success(api::Receipt {
         id: id(n),
         instance: Optional(target),

@@ -2,8 +2,10 @@ mod binding;
 mod device;
 mod instance;
 mod operation;
+mod supply;
 
 pub use instance::DriverError;
+pub use supply::SupplyError;
 
 use alloc::vec::Vec;
 use hub_api::{
@@ -44,7 +46,7 @@ pub struct Machine<A: Authority> {
     authority: A,
     limits: Limits,
     devices: Vec<Device>,
-    bindings: Vec<Binding>,
+    bindings: Vec<Binding<A::Supply>>,
     operations: Vec<Operation>,
     device_serial: u64,
     binding_serial: u64,
@@ -257,6 +259,7 @@ impl<A: Authority> Machine<A> {
             fault: 0,
             completed: [None; 12],
             driver: None,
+            supplies: core::array::from_fn(|_| None),
         };
         let snapshot = binding.snapshot();
         self.bindings.push(binding);
@@ -356,7 +359,12 @@ impl<A: Authority> Machine<A> {
         if slot >= usize::from(self.devices[device].offer.count) || evidence.receipt == 0 {
             return Err(Fail::Invalid);
         }
-        let bit = Binding::bit(evidence.allocation.slot, evidence.duty);
+        if evidence.duty == hub_api::Duty::Authorization && binding.supplies[slot].is_some() {
+            // A managed lease owns this exact branch; an arbitrary external
+            // receipt cannot replace its retained native completion evidence.
+            return Err(Fail::Denied);
+        }
+        let bit = Binding::<A::Supply>::bit(evidence.allocation.slot, evidence.duty);
         let completed = bit.trailing_zeros() as usize;
         if let Some(accepted) = binding.completed[completed] {
             return if accepted == (owner, evidence.receipt) {

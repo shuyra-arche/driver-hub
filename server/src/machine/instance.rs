@@ -1,6 +1,6 @@
 use super::Machine;
 use crate::{
-    authority::Authority,
+    authority::{Authority, SupplyRecord},
     driver::{self, Control, Driver, Progress},
 };
 use hub_api::{BindingId, BindingState, Fail};
@@ -63,6 +63,33 @@ impl<A: Authority> Machine<A> {
         if self.bindings[index].state != BindingState::Preparing {
             return Err(DriverError::Machine(Fail::Conflict));
         }
+        let driver = self.bindings[index]
+            .driver
+            .as_mut()
+            .ok_or(DriverError::Machine(Fail::Unknown))?;
+        if driver.progress().pending.is_some() {
+            // Admission gates a new Start; poll_driver recovers an old one.
+            return driver.start(control, wait).map_err(DriverError::Instance);
+        }
+        let binding = &self.bindings[index];
+        let device = self
+            .device_index(binding.device)
+            .map_err(DriverError::Machine)?;
+        let delivered = binding
+            .supplies
+            .iter()
+            .enumerate()
+            .fold(0, |mask, (slot, lease)| {
+                mask | u8::from(lease.as_ref().is_some_and(SupplyRecord::delivered)) << slot
+            });
+        self.authority
+            .check_start(
+                binding.requester,
+                self.devices[device].provider,
+                &self.devices[device].offer,
+                delivered,
+            )
+            .map_err(DriverError::Machine)?;
         let result = self.bindings[index]
             .driver
             .as_mut()
@@ -164,7 +191,7 @@ impl<A: Authority> Machine<A> {
             // terminal proof clears every Instance bit and no Device/Auth bit.
             for slot in 0..hub_api::MAX_RESOURCES {
                 binding.pending &=
-                    !super::binding::Binding::bit(slot as u8, hub_api::Duty::Instance);
+                    !super::binding::Binding::<A::Supply>::bit(slot as u8, hub_api::Duty::Instance);
             }
             binding.state = if binding.pending == 0 {
                 BindingState::Closed

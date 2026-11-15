@@ -92,6 +92,23 @@ a new incarnation. The initial library has no durable recovery or takeover
 adapter, so live takeover remains unsupported. A changed incarnation ID alone
 does not authorize reassignment.
 
+## Native Signal allocation delivery
+
+The [Signal Authority](authority.md) and `machine/supply.rs` now connect real
+imported CPU Sign rights to each Binding's owned native leases. The target is
+queried from its bound System Prepared Instance. Driver Start requires all
+Native resource slots Delivered and fresh source/policy checks. Release,
+withdrawal, failure and settle prevent further delivery and require explicit
+lease advancement; exact owned completion clears only that slot's Authorization
+bit. No lease is evidence of unknown/unmanaged work, so missing slots retain
+their duties. External receipts cannot replace a stored lease's completion.
+
+Signal means a CPU resource associated with a device; it is not MMIO, IRQ,
+reset, power or a quiescence receipt. Native rejects every hardware kind. It
+accepts no Device retirement receipt, so the CPU consumer deliberately retains
+Device bits and prevents rebinding even after every lease/Instance has retired.
+This is an internal executor path, not a generic Hub Supply RPC or full Hub Unit.
+
 ## Available hardware authority
 
 The following source revisions were inspected together. These are provider

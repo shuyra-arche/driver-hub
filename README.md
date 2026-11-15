@@ -29,7 +29,10 @@ Machine keeps the single resource and Binding commit boundary. Its
 configuration remains an independent effect mechanism, without a second
 resource allocator. The [native lease contract](docs/architecture/lease.md) keeps
 a private Kernel Pend branch and its cleanup responsibility in one Task-local
-owner. It does not replace Machine reservations or platform Authority.
+owner. Each Binding directly stores its allocation leases; delivery selects
+the actual Task from the bound System Prepared Instance. A managed lease may
+settle its own Authorization duty under the sole-owner contract; Device and
+Instance duties require their independent owners.
 
 The Server registers these integration-test targets explicitly:
 
@@ -39,6 +42,7 @@ The Server registers these integration-test targets explicitly:
 | `allocation` | `tests/machine/allocation/mod.rs` | OOM injection in its own executable |
 | `driver` | `tests/driver/mod.rs` | Instance recovery and caller isolation |
 | `pci` | `tests/pci/mod.rs` | Geometry and partial-effect recovery |
+| `authority` | `tests/authority.rs` | Trusted Signal import shape (Host only) |
 | `lease` | `tests/lease.rs` | Native lease request boundaries (Host only) |
 | `service` | `tests/service.rs` | Authenticated ingress and reply routing |
 
@@ -46,11 +50,15 @@ API codec tests remain in `api/tests/`. Shared Host models remain under
 `server/tests/support/`. The OOM target retains its own global allocator and
 must not be folded into another test executable.
 
-Offers describe up to four complete resources; a reservation covers that exact
+Offers describe up to four complete resources, including the new CPU-only
+`ResourceKind::Signal` (wire tag 7); a reservation covers that exact
 device epoch. Descriptions, addresses and Pend numbers never confer authority.
 The trusted `Authority` must validate genuinely imported Hub-local Pends and
 recheck live authorization at the effect boundary. There is no permissive default
-or native hardware Authority implementation. Recursive subprovider import awaits
+or native hardware Authority implementation. The
+[Signal Authority](docs/architecture/authority.md) admits only explicitly trusted
+CPU Signal imports, rechecks actual Kernel provenance and gates Driver Start
+on every resource slot being delivered. Recursive subprovider import awaits
 a validated derivation contract. IRQ and External Offers currently return
 `Unsupported`, including any claimed boot-admitted source.
 
@@ -65,8 +73,8 @@ Preparation records retirement duties before effects. Cancellation, failure and
 withdrawal preserve reservations until the exact owners establish device,
 authorization and Instance retirement. System #19 now supplies real InstanceId
 and the caller-owned Instance v1 contract; the Hub consumer uses that fixed
-subset. The native lease mechanism owns private Pend branches; native platform Authority,
-resource import, System Supply integration and restart takeover remain separate work. On Hub death, the
+subset. The native lease mechanism owns private Pend branches; hardware platform Authority,
+System Supply integration and restart takeover remain separate work. On Hub death, the
 integration owner must retain obligations or quarantine resources until real
 retirement; a new incarnation ID alone is insufficient.
 
@@ -108,16 +116,21 @@ Vanllia owns the separate one/multi-Hart QEMU and hardware acceptance gates.
 
 The [native Instance consumer](tests/target/handoff/README.md) runs Hub's
 production Driver/Native coordinator against the fixed complete System in QEMU.
-It checks two Driver Teams, Hub-owned native CPU Sign leases, UnitRoot publication, direct
-RPC, replacement, cancellation before delivery, ancestor revocation, repeated
-delivery progress and physical Instance retirement. It is a CPU-only consumer
+It checks three Driver Teams: one stopped before Start after source withdrawal,
+and two with two Signal slots each. It verifies Machine reservation, actual
+System-selected recipients, native provenance, Start admission, UnitRoot
+publication/direct RPC, replacement, cancellation, revocation and Instance
+retirement. Device duties remain retained and block rebinding. It is a CPU-only consumer
 scenario, not full Hub startup or device retirement acceptance.
 
 See [CI execution and cache boundaries](docs/ci.md) for PR change selection,
 parallel handoff profiles and evidence retention. Cache hits still execute the
 locked build and every selected VM; caches contain no prior VM results.
 
-This is an incompatible 0.x API replacement. Consumers must migrate after the
+This is an unreleased 0.x API. Custom `Authority` implementations must now
+select their `Supply` record and implement `check_start`; externally managed
+owners can use `NoSupply`. Existing wire tags are unchanged; older consumers
+reject the new Signal tag until migrated. This remains an incompatible 0.x API replacement. Consumers must migrate after the
 provider contract is reviewed and fixed; no legacy forwarding layer is supplied.
 See [source attribution](PROVENANCE.md) and the
 [organization contribution guide](https://github.com/shuyra-arche/.github/blob/main/CONTRIBUTING.md).
