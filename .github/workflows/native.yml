@@ -79,6 +79,9 @@ jobs:
           system = [p for p in packages if p['name'] in {'system-api', 'system-client'}]
           system_revision = '470e97f38aa904c3702b665c0d225809b9f0d16e'
           assert len(system) == 2 and {p['source'] for p in system} == {f'git+https://github.com/shuyra-arche/system.git?rev={system_revision}#{system_revision}'}
+          twine = [p for p in packages if p['name'] == 'twine']
+          twine_revision = '932454c07bd2673ac7d6d9612d36182aae71e8b2'
+          assert len(twine) == 1 and twine[0]['source'] == f'git+https://github.com/shuyra-arche/twine.git?rev={twine_revision}#{twine_revision}'
           legacy = {'env', 'wire', 'mold', 'ipc', 'resource', 'execution', 'router-api', 'driver-support'}
           assert not {p['name'] for p in packages} & legacy
           assert all(p['source'] is None for p in packages if p['name'].startswith('hub-'))
