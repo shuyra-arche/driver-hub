@@ -1,0 +1,47 @@
+use hub_api::{DeviceRef, Fail, Offer, ResourceSpec, Retirement};
+use kernel_api::model::identity::TaskId;
+
+/// Trusted platform adapter, separate from descriptions and coordination state.
+/// This repository supplies no permissive default implementation.
+///
+/// # Safety
+/// Implementations must check real Hub-local Pends through the Kernel, never a
+/// payload's copied PendInfo, before admitting an offer. Validate the actual
+/// delegating provider, live authorization, target kind, exact scope, rights and
+/// derivation lineage. Canonical conflict domains and coordinate units must come
+/// from trusted machine provenance, including cross-kind hardware aliases.
+/// Reservation must recheck current authority and caller policy. Kernel effects
+/// must recheck live Pends at execution; an inspection is only a snapshot.
+///
+/// `retired` may succeed only after the named actual owner has completed the
+/// exact resource/range, Device epoch, Allocation, attempt and duty. Task exit,
+/// IRQ acknowledgement, a CQ reply, timeout or an untrusted receipt number alone
+/// cannot establish quiescence. Busy/unknown/failed evidence must reject while
+/// retaining responsibility. The adapter must hold or transfer unfinished
+/// authority and hardware duties across failure; dropping Machine is no release.
+pub unsafe trait Authority {
+    /// Pure authorization/provenance check. Must not acquire capabilities,
+    /// change hardware, start an Instance or create any external responsibility.
+    /// Existing imported Pends remain held by the adapter on either result.
+    fn check_offer(&mut self, provider: TaskId, offer: &Offer) -> Result<(), Fail>;
+
+    /// Revalidate live authority and requester policy without external effects.
+    /// Actual grant/device preparation can begin only after begin_preparation
+    /// has recorded every required retirement duty.
+    fn check_reservation(
+        &mut self,
+        requester: TaskId,
+        provider: TaskId,
+        device: DeviceRef,
+        offer: &Offer,
+    ) -> Result<(), Fail>;
+
+    /// Check completed owner evidence; this check must not initiate retirement
+    /// effects whose uncertain completion would need a new responsibility.
+    fn check_retirement(
+        &mut self,
+        owner: TaskId,
+        resource: &ResourceSpec,
+        evidence: &Retirement,
+    ) -> Result<(), Fail>;
+}

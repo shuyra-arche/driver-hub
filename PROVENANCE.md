@@ -3,7 +3,24 @@
 Source: [anreonyr/sqware](https://github.com/anreonyr/sqware).
 Source checkpoints: `89ecffd0f8ce2077cd757d9561be141c87b8ec3b` and `293c15fc97a9d9a4295810d10fe804e4cdec63c4`.
 
-Hub API, client, runtime and host fixtures.
+Historical Hub API, client, runtime and host fixtures. Their original source
+and detailed extraction records remain in Git history. The native v2 Machine,
+Weave/Twine boundary and package-owned tests replace that runtime contract.
+
+Internal PCI configuration/BAR mechanisms also draw on
+[shuyra-arche/driver-pci](https://github.com/shuyra-arche/driver-pci/tree/69d43c9018ce6c35f63a83648050e33fe815504c),
+especially its ECAM geometry, exact BAR windows and partial-effect retention
+requirements. No old SDK capability implementation, user IOMMU or PLIC backend
+is copied into the native Hub. The new mechanism requires separately validated
+platform authorization and retirement; its Host models are not hardware proof.
+
+The CPU-only consumer runner under `tests/target/handoff` reuses the fixed
+System handoff fixture skeleton from
+`shuyra-arche/system@f97524817ce240a0b0471be3b557ceb5a871fe14` in a temporary
+checkout. It injects the Hub controller while retaining the provider's heap,
+test-only Sign source, Driver, packer and lifecycle checker. The provider's Git
+source and attribution remain present; this reuse does not infer a new license
+grant or import private System implementation into Hub production packages.
 
 Source-recorded author identities:
 
