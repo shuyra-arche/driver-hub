@@ -10,8 +10,15 @@ Two Driver Teams are prepared and started. Actual CPU Sign delivery, ready
 UnitRoots, publication CAS, direct consumer RPC, live replacement, withdrawal,
 Stop admission versus Retire completion, and independent Team/root-exit evidence
 are checked. Hub's native marker and the provider's typed lifecycle checker must
-both pass. The fixture's private CPU Sign source is test-only; Hub production
-code depends only on public API/Client packages.
+both pass. Hub's production `lease::Lease` derives a private local root from
+the controller's actual CPU Sign, then delivers one non-distributable TRIGGER
+Pend to the actual Driver Task. Repeated advancement returns the same token.
+Cancellation before submission closes without effects; an ancestor revocation
+between root creation and delivery must preserve responsibility until exact
+local-root absence is established. Final withdrawal occurs while the Driver
+is still alive and its next native trigger is denied. Every lease is explicitly
+finished, independently of Instance retirement. Hub production code uses only
+public Kernel/System API and Client packages.
 
 This selects the provider's main `handoff` scenario. Its other auth/cancel/death
 VMs are not Hub-consumer results. Hub's Host suite separately checks uncertain
@@ -30,8 +37,12 @@ python3 tests/target/handoff/run.py /path/to/system-runtime-platform --system-ch
 
 The local System checkout is optional; otherwise the runner clones the provider.
 It creates a separate ignored overlay, checks its exact revision and uses the
-committed User lock. The overlay reuses the fixed System heap, source, Driver,
-packer and checker; it replaces only the main controller with the Hub consumer.
+committed User lock. The overlay reuses the fixed System heap, Driver,
+packer and checker; it replaces the main controller with the Hub consumer and strengthens the
+Driver withdrawal probe to require native Sign Denied, rather than any non-Busy
+error.
+The provider main file still includes its private Source for unselected provider
+roles, but the selected Hub controller does not call that implementation.
 The User image stays release while `--profile` selects the full System profile.
 The supplied Kernel profile is independent and must be recorded.
 

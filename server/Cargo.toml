@@ -11,6 +11,7 @@ doctest = false
 [dependencies]
 hub-api.workspace = true
 kernel-api.workspace = true
+kernel-client.workspace = true
 twine.workspace = true
 weave.workspace = true
 system-api.workspace = true
@@ -26,6 +27,10 @@ path = "tests/machine/allocation/mod.rs"
 [[test]]
 name = "driver"
 path = "tests/driver/mod.rs"
+
+[[test]]
+name = "lease"
+path = "tests/lease.rs"
 
 [[test]]
 name = "machine"

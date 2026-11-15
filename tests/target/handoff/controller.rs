@@ -1,10 +1,13 @@
 //! CPU-only consumer fixture injected into the exact System handoff User ELF.
-//! System's test-only heap, ingress, Sign source and Driver roles are reused;
-//! Hub production code supplies the actual Instance coordinator and native SDK.
+//! System's test-only heap, ingress and Driver roles are reused; Hub production
+//! code owns the actual Instance coordinator and native Pend lease branches.
 use super::*;
 use alloc::rc::Rc;
 use core::cell::Cell;
-use hub_server::driver::{self, Driver, Native};
+use hub_server::{
+    driver::{self, Driver, Native},
+    lease::{self, Correlation, Lease, Request, State},
+};
 
 fn next(ids: &Cell<u64>) -> api::OperationId {
     let value = ids.get().checked_add(1).unwrap();
@@ -45,6 +48,57 @@ fn poll<F: FnMut() -> Option<api::OperationId>>(
         }
     }
     cleanup(native);
+}
+
+fn close_lease(lease: &mut Lease) {
+    loop {
+        match lease.finish() {
+            Ok(State::Closed) => break,
+            Err(lease::Error::Busy) => tick(budget()),
+            other => panic!("lease retirement: {other:?}"),
+        }
+    }
+    assert!(lease.delivery().is_none());
+    assert_eq!(lease.advance().unwrap(), State::Closed);
+    assert_eq!(lease.finish().unwrap(), State::Closed);
+}
+
+// An ancestor may remove our private root before we can deliver it. A denied
+// derive must preserve responsibility until actual Kernel settlement is known.
+fn cancelled_branch(owner: TaskId, request: Request, signal: PendId) {
+    let mut cancelled = unsafe { Lease::new_for_current_task(owner, request) }.unwrap();
+    close_lease(&mut cancelled); // no effect was submitted
+
+    let mut limits = request.limits();
+    limits.distributable = Distributable::Yes;
+    let bytes = AccordRequest {
+        src: signal,
+        target: AccordTarget::Caller,
+        limits,
+        mark: Mark::new(DEVICE),
+    }
+    .to_bytes();
+    let ancestor = pend::accord(VirtAddr::new(bytes.as_ptr().addr())).unwrap();
+    let request = Request::new(
+        request.correlation(),
+        ancestor,
+        request.recipient(),
+        request.limits(),
+        Mark::new(DEVICE),
+    )
+    .unwrap();
+    let mut interrupted = unsafe { Lease::new_for_current_task(owner, request) }.unwrap();
+    assert_eq!(interrupted.advance().unwrap(), State::DeliveryPending);
+    retire(ancestor);
+    assert!(matches!(
+        interrupted.advance(),
+        Err(lease::Error::Kernel(
+            kernel_api::abi::call::pend::PendFail::Denied
+        ))
+    ));
+    assert_eq!(interrupted.state(), State::DeliveryPending);
+    assert!(interrupted.delivery().is_none());
+    close_lease(&mut interrupted);
 }
 
 pub fn controller(license: PendId, context: Context) {
@@ -98,17 +152,11 @@ pub fn controller(license: PendId, context: Context) {
     .current;
     let mut discovery = discovery(license, context.clone());
     let signal = sign::create(license).unwrap();
-    let mut source = source::Source::new("handoff").unwrap();
-    let mut previous: Option<(
-        Driver,
-        operator::Resource,
-        api::Observation,
-        supply::LeaseId,
-    )> = None;
+    let mut previous: Option<(Driver, operator::Resource, api::Observation, Lease)> = None;
     for round in 0..2 {
         cleanup(&mut native);
-        // This fixture exercises only the production Instance coordinator;
-        // these correlation IDs claim no machine/device or Pend authority.
+        // These fixture correlation IDs claim no Machine/device or Pend
+        // authority; production Instance and lease effects use real owners.
         let binding = hub_api::BindingId {
             machine: hub_api::MachineId {
                 incarnation: caller.get() as u64,
@@ -143,38 +191,38 @@ pub fn controller(license: PendId, context: Context) {
             distributable: Distributable::No,
             scope: PendScope::Object,
         };
-        let key = alloc::format!("signal{round}");
-        source
-            .register(source::Resource {
-                name: &key,
-                source: signal,
-                maximum,
-                caller,
-                target: Some(actual),
-                description: b"cpu signal",
-            })
-            .unwrap();
-        let lease = supply::LeaseId::new(round + 1).unwrap();
-        source
-            .acquire(
-                caller,
-                supply::Acquire {
-                    lease,
-                    target: observed.task,
-                    binding: supply::Binding {
-                        source: supply::Key {
-                            name: String::from("handoff"),
-                        },
-                        resource: supply::Key { name: key },
-                        slot: system_protocol::Mark::new(DEVICE),
-                        rights: Rights(maximum),
-                    },
+        let correlation = Correlation {
+            device: hub_api::DeviceRef {
+                id: hub_api::DeviceId {
+                    machine: binding.machine,
+                    serial: round + 1,
                 },
-            )
-            .unwrap();
-        while source.inspect(caller, lease).unwrap().state != supply::State::Granted {
-            source.advance().unwrap();
-            tick(budget());
+                epoch: 1,
+            },
+            allocation: hub_api::AllocationId { binding, slot: 0 },
+            attempt: 1,
+        };
+        let request =
+            Request::new(correlation, signal, actual, maximum, Mark::new(DEVICE)).unwrap();
+        if round == 0 {
+            cancelled_branch(caller, request, signal);
+        }
+        // The signal is a real local Pend, and this owner stays in the actual
+        // controller Task. Correlation IDs confer no Machine/device authority.
+        let mut lease = unsafe { Lease::new_for_current_task(caller, request) }.unwrap();
+        while lease.delivery().is_none() {
+            match lease.advance() {
+                Ok(_) => (),
+                Err(lease::Error::Busy) => tick(budget()),
+                other => panic!("lease delivery: {other:?}"),
+            }
+        }
+        let delivered = lease.delivery().unwrap();
+        assert_eq!(delivered.recipient, actual);
+        assert_eq!(delivered.correlation, correlation);
+        for _ in 0..4 {
+            assert_eq!(lease.advance().unwrap(), State::Delivered);
+            assert_eq!(lease.delivery(), Some(delivered));
         }
         driver.start(&mut native, deadline()).unwrap();
         poll(&mut driver, &mut native, false);
@@ -214,7 +262,7 @@ pub fn controller(license: PendId, context: Context) {
         assert_eq!(published.state, api::State::Completed);
         let resource = bind_resource(&mut discovery, target);
         ping(&resource, &observed, license, context.clone(), false);
-        if let Some((mut old, old_resource, old_observed, _old_lease)) = previous.take() {
+        if let Some((mut old, old_resource, old_observed, mut old_lease)) = previous.take() {
             assert_ne!(old.progress().instance, Some(target));
             ping(
                 &old_resource,
@@ -235,16 +283,13 @@ pub fn controller(license: PendId, context: Context) {
                 api::Phase::Retired
             );
             cleanup(&mut native);
+            close_lease(&mut old_lease);
             ping(&resource, &observed, license, context.clone(), false);
         }
         previous = Some((driver, resource, observed, lease));
     }
-    let (mut driver, resource, observed, lease) = previous.take().unwrap();
-    source.release(caller, lease).unwrap();
-    while source.inspect(caller, lease).unwrap().state != supply::State::Released {
-        source.advance().unwrap();
-        tick(budget());
-    }
+    let (mut driver, resource, observed, mut lease) = previous.take().unwrap();
+    close_lease(&mut lease);
     ping(&resource, &observed, license, context.clone(), true);
     retire(resource.token.try_into().unwrap());
     driver.close(&mut native, deadline()).unwrap();
@@ -254,10 +299,11 @@ pub fn controller(license: PendId, context: Context) {
         api::Phase::Retired
     );
     cleanup(&mut native);
-    while !source.finish().unwrap() {
-        tick(budget());
-    }
     retire(signal);
+    let _ = writeln!(
+        Console,
+        "PASS hub-lease native=1 replay=1 cancel=1 ancestor-revoke=1 withdrawal=1"
+    );
     let _ = writeln!(
         Console,
         "PASS hub-consumer native=1 system-instance=1 prepared=1 roots=1 stop-not-retire=1 retired=1"
