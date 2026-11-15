@@ -77,7 +77,7 @@ jobs:
           providers = [p for p in packages if p['name'] in {'kernel-api', 'kernel-client', 'kernel-api-macros'}]
           assert len(providers) == 3 and {p['source'] for p in providers} == {expected}
           system = [p for p in packages if p['name'] in {'system-api', 'system-client'}]
-          system_revision = 'f97524817ce240a0b0471be3b557ceb5a871fe14'
+          system_revision = '470e97f38aa904c3702b665c0d225809b9f0d16e'
           assert len(system) == 2 and {p['source'] for p in system} == {f'git+https://github.com/shuyra-arche/system.git?rev={system_revision}#{system_revision}'}
           legacy = {'env', 'wire', 'mold', 'ipc', 'resource', 'execution', 'router-api', 'driver-support'}
           assert not {p['name'] for p in packages} & legacy
@@ -125,7 +125,7 @@ jobs:
         id: platform_lock
         run: |
           git clone https://github.com/shuyra-arche/system.git "$RUNNER_TEMP/system"
-          git -C "$RUNNER_TEMP/system" checkout --detach f97524817ce240a0b0471be3b557ceb5a871fe14
+          git -C "$RUNNER_TEMP/system" checkout --detach 470e97f38aa904c3702b665c0d225809b9f0d16e
           echo "sha256=$(sha256sum "$RUNNER_TEMP/system/tests/guest/runtime/platform/Cargo.lock" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
       - name: Restore pinned Cargo downloads
         id: cargo_cache
@@ -148,7 +148,7 @@ jobs:
         uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
         with:
           path: ${{ runner.temp }}/platform
-          key: platform-${{ runner.os }}-${{ runner.arch }}-nightly-2026-11-13-release-riscv64gc-unknown-none-elf-f97524817ce240a0b0471be3b557ceb5a871fe14-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'tests/target/handoff/Cargo.lock') }}-${{ steps.platform_lock.outputs.sha256 }}-${{ hashFiles('.github/workflows/native.yml') }}
+          key: platform-${{ runner.os }}-${{ runner.arch }}-nightly-2026-11-13-release-riscv64gc-unknown-none-elf-470e97f38aa904c3702b665c0d225809b9f0d16e-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'tests/target/handoff/Cargo.lock') }}-${{ steps.platform_lock.outputs.sha256 }}-${{ hashFiles('.github/workflows/native.yml') }}
       - name: Report fixed platform build cache
         env:
           CACHE_HIT: ${{ steps.platform_cache.outputs.cache-hit }}
@@ -162,7 +162,7 @@ jobs:
         uses: actions/cache/save@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
         with:
           path: ${{ runner.temp }}/platform
-          key: platform-${{ runner.os }}-${{ runner.arch }}-nightly-2026-11-13-release-riscv64gc-unknown-none-elf-f97524817ce240a0b0471be3b557ceb5a871fe14-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'tests/target/handoff/Cargo.lock') }}-${{ steps.platform_lock.outputs.sha256 }}-${{ hashFiles('.github/workflows/native.yml') }}
+          key: platform-${{ runner.os }}-${{ runner.arch }}-nightly-2026-11-13-release-riscv64gc-unknown-none-elf-470e97f38aa904c3702b665c0d225809b9f0d16e-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'tests/target/handoff/Cargo.lock') }}-${{ steps.platform_lock.outputs.sha256 }}-${{ hashFiles('.github/workflows/native.yml') }}
       - name: Run the real Hub Instance consumer on one, two and four Harts
         run: python3 tests/target/handoff/run.py "$RUNNER_TEMP/platform/riscv64gc-unknown-none-elf/release/system-runtime-platform" --system-checkout "$RUNNER_TEMP/system" --profile ${{ matrix.profile }} --harts 1 2 4
       - name: Preserve native consumer evidence
@@ -172,5 +172,5 @@ jobs:
           name: hub-handoff-${{ matrix.profile }}-attempt-${{ github.run_attempt }}
           path: |
             tests/target/handoff/target/inputs.json
-            tests/target/handoff/target/system/tests/guest/system/target/handoff/
+            tests/target/handoff/target/system-*/tests/guest/system/target/handoff/
           if-no-files-found: error

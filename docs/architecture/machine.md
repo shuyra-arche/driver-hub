@@ -109,7 +109,18 @@ accepts no Device retirement receipt, so the CPU consumer deliberately retains
 Device bits and prevents rebinding even after every lease/Instance has retired.
 This is an internal executor path, not a generic Hub Supply RPC or full Hub Unit.
 
-## Available hardware authority
+## Selected native graph
+
+Current consumption selects merged System #24
+`470e97f38aa904c3702b665c0d225809b9f0d16e`, Kernel
+`789ffd19b5359f3de172fb9aad8a61f6a7113a64` (ABI/Ledger 13/13), Twine
+`932454c07bd2673ac7d6d9612d36182aae71e8b2` and unchanged Weave. All ordinary
+Tasks use User mode and ECALL. The Signal Authority/Lease ownership contract
+and unsupported hardware gates remain in force; this graph update confers no
+new device authorization. The provider survey below is historical, not the
+current build graph.
+
+## Hardware authority survey (historical)
 
 The following source revisions were inspected together. These are provider
 identities for this contract review, not evidence of composed Vanllia acceptance.

@@ -32,8 +32,8 @@ root fail closed. Closed is idempotent; dropping the Rust value is not cleanup.
 Ancestor revocation can remove the root before finish and is covered by this
 same absence proof.
 
-This contract consumes Kernel `684f479c45dc2d94d405b32b4ffc6334a4233fc9`,
-ABI/Ledger 11/11. Accord Busy publishes no new child registration, but other
+This contract consumes Kernel `789ffd19b5359f3de172fb9aad8a61f6a7113a64`,
+ABI/Ledger 13/13. Accord Busy publishes no new child registration, but other
 source-side effects may already have occurred on memory/register paths. A retry
 does not imply the source was unchanged. Return Busy can retain closed authority
 and registration charges while cleanup remains incomplete.

@@ -58,7 +58,18 @@ implementation or a second allocation table.
 
 ## System boundary and evidence
 
-Fixed System `f97524817ce240a0b0471be3b557ceb5a871fe14` Supply RPC Acquire
+This contract was rechecked against Kernel
+`789ffd19b5359f3de172fb9aad8a61f6a7113a64`, ABI/Ledger 13/13. PendInfo
+retains owner/lender and the same resolved-scope rules; Return/Collect retain
+the exact same-Task settlement boundary. UnitQuery::Caller identifies the Task,
+not its privilege level. User execution comes from the pinned ABI 13 startup
+contract; the guest exercises actual ECALL-backed public operations rather
+than reading privileged CSRs.
+
+
+Fixed System `470e97f38aa904c3702b665c0d225809b9f0d16e` retains the same
+Supply v4 consumer interface: Acquire/Inspect/Release/Cancel, with no public
+external source registration. Supply RPC Acquire
 requires target == actual caller. It cannot broker a Hub request to another
 Task. This increment implements the trusted internal allocation/lease executor
 using the public System Instance observation and public Kernel calls; it adds
@@ -78,5 +89,5 @@ checker, budgets and actual root exit.
 
 This is not a standalone Hub Unit, hardware import, device quiescence, Pages
 mapping proof, full System Supply integration or Vanllia product acceptance.
-ABI/Ledger/Capsule remain 11/11/2 and all provider revisions stay fixed. Protected
+ABI/Ledger/Capsule remain 13/13/2 and all provider revisions stay fixed. Protected
 ECAM custody and IRQ/External admission require separate provider contracts.

@@ -6,7 +6,7 @@ from pathlib import Path
 import shutil
 import subprocess
 
-SYSTEM = 'f97524817ce240a0b0471be3b557ceb5a871fe14'
+SYSTEM = '470e97f38aa904c3702b665c0d225809b9f0d16e'
 
 
 def main():
@@ -14,13 +14,14 @@ def main():
     parser.add_argument('kernel', type=Path)
     parser.add_argument('--system-checkout', type=Path)
     parser.add_argument('--profile', choices=('debug', 'release'), default='release')
+    parser.add_argument('--kernel-profile', choices=('debug', 'release'), default='release')
     parser.add_argument('--harts', choices=(1, 2, 4), type=int, nargs='+', default=[1])
     args = parser.parse_args()
     test = Path(__file__).resolve().parent
     hub = test.parents[2]
     target = test / 'target'
     target.mkdir(parents=True, exist_ok=True)
-    overlay = target / 'system'
+    overlay = target / f'system-{SYSTEM}'
     if not overlay.exists():
         source = str(args.system_checkout.resolve()) if args.system_checkout else 'https://github.com/shuyra-arche/system.git'
         subprocess.run(['git', 'clone', '--no-hardlinks', source, overlay], check=True)
@@ -53,11 +54,13 @@ def main():
     text = text.replace(old, 'assert_eq!(error.source, kernel_api::abi::call::sign::SignFail::Denied);')
     main.write_text(text)
     runner = overlay / 'tests/guest/system/run.py'
-    text = runner.read_text().replace("(('handoff', 'auth', 'cancel', 'death') if args.handoff else (0, 2, 1))", "(('handoff',) if args.handoff else (0, 2, 1))")
-    runner.write_text(text)
     shutil.copyfile(test / 'Cargo.lock', user / 'Cargo.lock')
     inputs = {
         'system_revision': SYSTEM,
+        'kernel_revision': '789ffd19b5359f3de172fb9aad8a61f6a7113a64',
+        'twine_revision': '932454c07bd2673ac7d6d9612d36182aae71e8b2',
+        'kernel_abi': 13,
+        'kernel_profile': args.kernel_profile,
         'hub_revision': subprocess.check_output(['git', '-c', f'safe.directory={hub}', 'rev-parse', 'HEAD'], cwd=hub, text=True).strip(),
         'hub_dirty': bool(subprocess.check_output(['git', '-c', f'safe.directory={hub}', 'status', '--porcelain'], cwd=hub)),
         'controller_sha256': hashlib.sha256((test / 'controller.rs').read_bytes()).hexdigest(),
@@ -66,6 +69,7 @@ def main():
     }
     (target / 'inputs.json').write_text(json.dumps(inputs, indent=2) + '\n')
     command = ['python3', runner, args.kernel.resolve(), '--handoff', '--profile', args.profile,
+               '--scenarios', 'handoff', '--kernel-profile', args.kernel_profile,
                '--harts', *map(str, args.harts)]
     evidence = overlay / 'tests/guest/system/target/handoff' / args.profile
     previous_logs = set(evidence.rglob('users-handoff-harts-*.log')) if evidence.exists() else set()
@@ -80,6 +84,7 @@ def main():
         b'PASS hub-consumer native=1' in path.read_bytes()
         and b'PASS hub-lease native=1 replay=1 cancel=1 ancestor-revoke=1 withdrawal=1' in path.read_bytes()
         and b'PASS hub-machine native-authority=1 prepared-target=1 slots=2 managed-revoke=1 retained-device=1' in path.read_bytes()
+        and b'PASS hub-abi version=13 ledger=13 capsule=2' in path.read_bytes()
         for path in logs
     ), 'missing Hub consumer or native lease assertion'
 

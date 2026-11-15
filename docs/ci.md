@@ -23,3 +23,10 @@ evidence under a run-attempt-specific artifact name.
 Cache entries are performance inputs only. A missing or incompatible entry
 causes a normal build from the locked sources. The workflow logs report each
 cache hit so warm-run savings can be measured from actual Actions runs.
+
+The handoff uses System #24's immutable ABI 13 graph. Its public scenario
+selector runs only `handoff`, without patching the provider runner. Source
+revisions have separate ignored overlay directories; artifacts collect the
+revision-qualified native evidence paths and include the guest's ABI/Ledger/
+Capsule assertion. Existing release-Kernel role/VM bounds remain 60/90 seconds;
+no old result is reused as evidence after the ABI migration.
