@@ -117,6 +117,11 @@ where
     /// Finish SDK reply-route cleanup only. This does not withdraw a source,
     /// cancel an install, or retire any Kernel root.
     pub fn finish(&mut self) -> Result<(), NativeError> {
+        self.verify_caller()?;
+        self.finish_cleanup()
+    }
+
+    fn finish_cleanup(&mut self) -> Result<(), NativeError> {
         if let Some(cleanup) = self.cleanup.as_mut() {
             cleanup.finish().map_err(NativeError::Cleanup)?;
             self.cleanup = None;
@@ -136,7 +141,7 @@ where
     where
         O: Operation<Interface = op::Interface>,
     {
-        self.finish()?;
+        self.finish_cleanup()?;
         let mut pending = match self.client.begin::<O>(request, wait) {
             Ok(pending) => pending,
             Err(failure) => {
@@ -235,8 +240,8 @@ where
     ) -> Result<Response, Self::Error> {
         // Settle any prior SDK reply route before a native or remote effect.
         // On error the Supply owner retains phase and IDs for recovery.
-        self.finish()?;
         self.verify_caller()?;
+        self.finish_cleanup()?;
         use Command::*;
         Ok(match command {
             CreateOffering {

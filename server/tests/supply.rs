@@ -38,8 +38,11 @@ enum MockError {
 enum Lose {
     None,
     Register,
+    RegisterUnaccepted,
     Install,
+    InstallUnaccepted,
     Cancel,
+    Withdraw,
 }
 
 struct Model {
@@ -51,8 +54,14 @@ struct Model {
     lose: Lose,
     source: Option<SourceStatus>,
     install: Option<InstallStatus>,
+    source_accepted: bool,
+    install_accepted: bool,
+    source_id: Option<RegistrationId>,
+    install_id: Option<InstallId>,
     unknown_source_once: bool,
     unknown_install_once: bool,
+    pending_register_once: bool,
+    pending_install_once: bool,
     wrong_install_id: bool,
     busy_retire: bool,
     conflict_register: bool,
@@ -69,8 +78,14 @@ impl Model {
             lose: Lose::None,
             source: None,
             install: None,
+            source_accepted: false,
+            install_accepted: false,
+            source_id: None,
+            install_id: None,
             unknown_source_once: false,
             unknown_install_once: false,
+            pending_register_once: false,
+            pending_install_once: false,
             wrong_install_id: false,
             busy_retire: false,
             conflict_register: false,
@@ -79,13 +94,23 @@ impl Model {
 
     fn source_status(&self, state: SourceState) -> SourceStatus {
         SourceStatus {
-            id: RegistrationId::new(1).unwrap(),
+            id: self
+                .source_id
+                .unwrap_or_else(|| RegistrationId::new(1).unwrap()),
             state,
         }
     }
 
     fn install_status(&self, state: InstallState) -> InstallStatus {
-        let id = InstallId::new(if self.wrong_install_id { 99 } else { 1 }).unwrap();
+        let id = if self.wrong_install_id {
+            InstallId::new(99).unwrap()
+        } else {
+            self.install_id
+                .unwrap_or_else(|| InstallId::new(1).unwrap())
+        };
+        if state == InstallState::Cancelled {
+            return InstallStatus::cancelled(id);
+        }
         let delivered = sys::PendId::new(77);
         InstallStatus {
             id,
@@ -131,48 +156,109 @@ unsafe impl Control for Model {
                 }
                 Response::Retired
             }
-            Command::Register(_request) => {
+            Command::Register(request) => {
+                self.source_id = Some(request.id);
                 if self.conflict_register {
                     return Ok(Response::Source(Outcome::Failure(Fail::Conflict)));
                 }
+                if self.source.is_none() && self.lose == Lose::RegisterUnaccepted {
+                    self.lose = Lose::None;
+                    return Err(MockError::LostReply);
+                }
+                if self.pending_register_once && self.source.is_none() {
+                    self.pending_register_once = false;
+                    return Ok(Response::Source(Outcome::Failure(Fail::Pending)));
+                }
+                if let Some(status) = self.source {
+                    return Ok(Response::Source(Outcome::Success(status)));
+                }
                 let status = self.source_status(SourceState::Active);
                 self.source = Some(status);
+                self.source_accepted = true;
                 if self.lose == Lose::Register {
                     self.lose = Lose::None;
                     return Err(MockError::LostReply);
                 }
                 Response::Source(Outcome::Success(status))
             }
-            Command::InspectSource(_) => {
+            Command::InspectSource(request) => {
+                assert_eq!(self.source_id, Some(request.id));
                 if self.unknown_source_once {
                     self.unknown_source_once = false;
                     Response::Source(Outcome::Failure(Fail::Unknown))
                 } else {
+                    if self
+                        .source
+                        .is_some_and(|status| status.state == SourceState::Closing)
+                    {
+                        let closed = self.source_status(SourceState::Closed);
+                        self.source = Some(closed);
+                    }
                     Response::Source(
                         self.source
                             .map_or(Outcome::Failure(Fail::Unknown), Outcome::Success),
                     )
                 }
             }
-            Command::Withdraw(_) => {
-                let status = self.source_status(SourceState::Closed);
+            Command::Withdraw(request) => {
+                assert_eq!(self.source_id, Some(request.id));
+                let status = self.source_status(if self.source_accepted {
+                    SourceState::Closing
+                } else {
+                    SourceState::Cancelled
+                });
                 self.source = Some(status);
+                if self.lose == Lose::Withdraw {
+                    self.lose = Lose::None;
+                    return Err(MockError::LostReply);
+                }
                 Response::Source(Outcome::Success(status))
             }
-            Command::Install(_request) => {
+            Command::Install(request) => {
+                self.install_id = Some(request.id);
+                if self
+                    .install
+                    .as_ref()
+                    .is_some_and(|status| status.state == InstallState::Cancelled)
+                {
+                    return Ok(Response::Install(Outcome::Success(
+                        self.install.clone().unwrap(),
+                    )));
+                }
+                if self.install.is_none() && self.lose == Lose::InstallUnaccepted {
+                    self.lose = Lose::None;
+                    return Err(MockError::LostReply);
+                }
+                if self.pending_install_once && self.install.is_none() {
+                    self.pending_install_once = false;
+                    return Ok(Response::Install(Outcome::Failure(Fail::Pending)));
+                }
+                if let Some(status) = self.install.clone() {
+                    return Ok(Response::Install(Outcome::Success(status)));
+                }
                 let status = self.install_status(InstallState::Granted);
                 self.install = Some(status.clone());
+                self.install_accepted = true;
                 if self.lose == Lose::Install {
                     self.lose = Lose::None;
                     return Err(MockError::LostReply);
                 }
                 Response::Install(Outcome::Success(status))
             }
-            Command::InspectInstall(_) => {
+            Command::InspectInstall(request) => {
+                assert_eq!(self.install_id, Some(request.id));
                 if self.unknown_install_once {
                     self.unknown_install_once = false;
                     Response::Install(Outcome::Failure(Fail::Unknown))
                 } else {
+                    if self
+                        .install
+                        .as_ref()
+                        .is_some_and(|status| status.state == InstallState::Releasing)
+                    {
+                        let released = self.install_status(InstallState::Released);
+                        self.install = Some(released);
+                    }
                     Response::Install(
                         self.install
                             .clone()
@@ -180,8 +266,13 @@ unsafe impl Control for Model {
                     )
                 }
             }
-            Command::CancelInstall(_) => {
-                let status = self.install_status(InstallState::Released);
+            Command::CancelInstall(request) => {
+                assert_eq!(self.install_id, Some(request.id));
+                let status = self.install_status(if self.install_accepted {
+                    InstallState::Releasing
+                } else {
+                    InstallState::Cancelled
+                });
                 self.install = Some(status.clone());
                 if self.lose == Lose::Cancel {
                     self.lose = Lose::None;
@@ -249,6 +340,21 @@ fn advance_to_install(model: &mut Model, owner: &mut Supply) {
     owner.advance(model, Wait::Infinite).unwrap(); // register
 }
 
+fn finish_to_closed(model: &mut Model, owner: &mut Supply) {
+    for _ in 0..8 {
+        if owner.progress().state == State::Closed {
+            return;
+        }
+        owner.finish(model, Wait::Infinite).unwrap();
+    }
+    assert_eq!(
+        owner.progress().state,
+        State::Closed,
+        "commands: {:#?}",
+        model.commands
+    );
+}
+
 #[test]
 fn constructor_keeps_immutable_intent_and_unique_names() {
     let mut model = Model::new();
@@ -305,14 +411,7 @@ fn delivery_is_exact_and_finish_closes_install_source_and_private_root() {
         owner.finish(&mut model, Wait::Infinite).unwrap().state,
         State::Closing
     );
-    assert_eq!(
-        owner.advance(&mut model, Wait::Infinite).unwrap().state,
-        State::Closing
-    );
-    assert_eq!(
-        owner.advance(&mut model, Wait::Infinite).unwrap().state,
-        State::Closed
-    );
+    finish_to_closed(&mut model, &mut owner);
     assert!(matches!(
         model.commands.last(),
         Some(Command::RetireOffering(_))
@@ -334,11 +433,7 @@ fn uncertain_install_recovery_is_sticky_closing_and_does_not_reinstall() {
         owner.finish(&mut model, Wait::Infinite).unwrap().state,
         State::Closing
     );
-    owner.advance(&mut model, Wait::Infinite).unwrap(); // inspect unknown
-    owner.advance(&mut model, Wait::Infinite).unwrap(); // cancel creates tombstone
-    owner.advance(&mut model, Wait::Infinite).unwrap(); // withdraw/close source
-    owner.advance(&mut model, Wait::Infinite).unwrap(); // retire root
-    assert_eq!(owner.progress().state, State::Closed);
+    finish_to_closed(&mut model, &mut owner);
     assert!(
         !model
             .commands
@@ -390,18 +485,23 @@ fn busy_root_retirement_keeps_closing_duty_until_retry_succeeds() {
     advance_to_install(&mut model, &mut owner);
     owner.advance(&mut model, Wait::Infinite).unwrap();
     owner.finish(&mut model, Wait::Infinite).unwrap();
-    owner.advance(&mut model, Wait::Infinite).unwrap(); // close source
     model.busy_retire = true;
-    assert!(matches!(
-        owner.advance(&mut model, Wait::Infinite),
-        Err(Error::Control(MockError::Busy))
-    ));
+    let mut saw_busy = false;
+    for _ in 0..8 {
+        match owner.finish(&mut model, Wait::Infinite) {
+            Ok(progress) if progress.state == State::Closed => panic!("Busy must retain root"),
+            Ok(_) => (),
+            Err(Error::Control(MockError::Busy)) => {
+                saw_busy = true;
+                break;
+            }
+            Err(error) => panic!("unexpected cleanup error: {error:?}"),
+        }
+    }
+    assert!(saw_busy);
     assert_eq!(owner.progress().state, State::Closing);
     model.busy_retire = false;
-    assert_eq!(
-        owner.finish(&mut model, Wait::Infinite).unwrap().state,
-        State::Closed
-    );
+    finish_to_closed(&mut model, &mut owner);
 }
 
 #[test]
@@ -417,11 +517,205 @@ fn admission_conflict_closes_the_retained_registration_and_local_root() {
     ));
     assert_eq!(owner.progress().state, State::Closing);
     model.conflict_register = false;
-    for _ in 0..4 {
-        if owner.progress().state == State::Closed {
-            break;
-        }
-        owner.finish(&mut model, Wait::Infinite).unwrap();
-    }
-    assert_eq!(owner.progress().state, State::Closed);
+    finish_to_closed(&mut model, &mut owner);
+}
+
+#[test]
+fn lost_withdraw_inspects_same_accepted_registration_until_closed() {
+    let mut model = Model::new();
+    let mut owner = supply(&mut model);
+    owner.advance(&mut model, Wait::Infinite).unwrap();
+    owner.advance(&mut model, Wait::Infinite).unwrap();
+    owner.advance(&mut model, Wait::Infinite).unwrap(); // accepted registration
+    model.lose = Lose::Withdraw;
+    owner.finish(&mut model, Wait::Infinite).unwrap(); // no install to cancel
+    assert!(matches!(
+        owner.finish(&mut model, Wait::Infinite),
+        Err(Error::Control(MockError::LostReply))
+    ));
+    assert_eq!(owner.progress().state, State::Closing);
+    finish_to_closed(&mut model, &mut owner);
+
+    assert_eq!(model.source.unwrap().state, SourceState::Closed);
+    let withdraw = model
+        .commands
+        .iter()
+        .find_map(|command| match command {
+            Command::Withdraw(request) => Some(*request),
+            _ => None,
+        })
+        .unwrap();
+    let inspection = model
+        .commands
+        .iter()
+        .find_map(|command| match command {
+            Command::InspectSource(request) => Some(*request),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(withdraw, inspection);
+
+    // A late retry of the original Register remains the closed accepted record.
+    let late = model
+        .commands
+        .iter()
+        .find_map(|command| match command {
+            Command::Register(request) => Some(request.clone()),
+            _ => None,
+        })
+        .unwrap();
+    let response = model
+        .execute(Command::Register(late), Wait::Infinite)
+        .unwrap();
+    assert!(matches!(
+        response,
+        Response::Source(Outcome::Success(SourceStatus {
+            state: SourceState::Closed,
+            ..
+        }))
+    ));
+    assert_eq!(model.source.unwrap().state, SourceState::Closed);
+}
+
+#[test]
+fn unknown_register_then_precommit_pending_still_withdraws_tombstone() {
+    let mut model = Model::new();
+    model.lose = Lose::RegisterUnaccepted;
+    model.unknown_source_once = true;
+    model.pending_register_once = true;
+    let mut owner = supply(&mut model);
+    owner.advance(&mut model, Wait::Infinite).unwrap();
+    owner.advance(&mut model, Wait::Infinite).unwrap();
+    assert!(matches!(
+        owner.advance(&mut model, Wait::Infinite),
+        Err(Error::Control(MockError::LostReply))
+    ));
+    owner.advance(&mut model, Wait::Infinite).unwrap(); // Unknown
+    owner.advance(&mut model, Wait::Infinite).unwrap(); // precommit Pending
+    assert_eq!(owner.progress().state, State::Registering);
+    finish_to_closed(&mut model, &mut owner);
+    assert_eq!(model.source.unwrap().state, SourceState::Cancelled);
+
+    let late = model
+        .commands
+        .iter()
+        .find_map(|command| match command {
+            Command::Register(request) => Some(request.clone()),
+            _ => None,
+        })
+        .unwrap();
+    let response = model
+        .execute(Command::Register(late), Wait::Infinite)
+        .unwrap();
+    assert!(matches!(
+        response,
+        Response::Source(Outcome::Success(SourceStatus {
+            state: SourceState::Cancelled,
+            ..
+        }))
+    ));
+    assert_eq!(model.source.unwrap().state, SourceState::Cancelled);
+}
+
+#[test]
+fn lost_cancel_install_inspects_same_id_until_released() {
+    let mut model = Model::new();
+    let mut owner = supply(&mut model);
+    advance_to_install(&mut model, &mut owner);
+    owner.advance(&mut model, Wait::Infinite).unwrap(); // Granted
+    model.lose = Lose::Cancel;
+    assert!(matches!(
+        owner.finish(&mut model, Wait::Infinite),
+        Err(Error::Control(MockError::LostReply))
+    ));
+    finish_to_closed(&mut model, &mut owner);
+    assert_eq!(
+        model.install.as_ref().unwrap().state,
+        InstallState::Released
+    );
+
+    let canceled = model
+        .commands
+        .iter()
+        .find_map(|command| match command {
+            Command::CancelInstall(request) => Some(*request),
+            _ => None,
+        })
+        .unwrap();
+    let inspected = model
+        .commands
+        .iter()
+        .find_map(|command| match command {
+            Command::InspectInstall(request) => Some(*request),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(canceled, inspected);
+    let late = model
+        .commands
+        .iter()
+        .find_map(|command| match command {
+            Command::Install(request) => Some(request.clone()),
+            _ => None,
+        })
+        .unwrap();
+    let response = model
+        .execute(Command::Install(late), Wait::Infinite)
+        .unwrap();
+    assert!(matches!(
+        response,
+        Response::Install(Outcome::Success(InstallStatus {
+            state: InstallState::Released,
+            ..
+        }))
+    ));
+    assert_eq!(
+        model.install.as_ref().unwrap().state,
+        InstallState::Released
+    );
+}
+
+#[test]
+fn unknown_install_then_precommit_pending_still_cancels_tombstone() {
+    let mut model = Model::new();
+    model.lose = Lose::InstallUnaccepted;
+    model.unknown_install_once = true;
+    model.pending_install_once = true;
+    let mut owner = supply(&mut model);
+    advance_to_install(&mut model, &mut owner);
+    assert!(matches!(
+        owner.advance(&mut model, Wait::Infinite),
+        Err(Error::Control(MockError::LostReply))
+    ));
+    owner.advance(&mut model, Wait::Infinite).unwrap(); // Unknown
+    owner.advance(&mut model, Wait::Infinite).unwrap(); // precommit Pending
+    assert_eq!(owner.progress().state, State::Installing);
+    finish_to_closed(&mut model, &mut owner);
+    assert_eq!(
+        model.install.as_ref().unwrap().state,
+        InstallState::Cancelled
+    );
+
+    let late = model
+        .commands
+        .iter()
+        .find_map(|command| match command {
+            Command::Install(request) => Some(request.clone()),
+            _ => None,
+        })
+        .unwrap();
+    let response = model
+        .execute(Command::Install(late), Wait::Infinite)
+        .unwrap();
+    assert!(matches!(
+        response,
+        Response::Install(Outcome::Success(InstallStatus {
+            state: InstallState::Cancelled,
+            ..
+        }))
+    ));
+    assert_eq!(
+        model.install.as_ref().unwrap().state,
+        InstallState::Cancelled
+    );
 }

@@ -260,6 +260,13 @@ impl Supply {
     }
 
     fn state(&self) -> State {
+        if self.closing {
+            return if self.phase == Phase::Closed {
+                State::Closed
+            } else {
+                State::Closing
+            };
+        }
         match self.phase {
             Phase::Create => State::Offering,
             Phase::Delegate | Phase::Register | Phase::InspectSource => State::Registering,
@@ -310,10 +317,7 @@ impl Supply {
         wait: Wait,
     ) -> Result<Progress, Error<C::Error>> {
         self.check_control(control)?;
-        if !matches!(
-            self.phase,
-            Phase::CloseInstall | Phase::CloseSource | Phase::CloseOffering | Phase::Closed
-        ) {
+        if !self.closing && self.phase != Phase::Closed {
             self.begin_closing();
         }
         self.advance(control, wait)
