@@ -86,11 +86,24 @@ boundary requires real exclusive configuration authority, MMIO ordering and
 already quiescent ownership. The protected ECAM handoff to a runtime Hub remains
 unimplemented; no PCI/Router/IOMMU Unit or repository is retired by this change.
 
+## Native execution contract
+
+The selected graph is System `470e97f38aa904c3702b665c0d225809b9f0d16e`,
+Kernel `789ffd19b5359f3de172fb9aad8a61f6a7113a64` (ABI/Ledger 13/13),
+Twine `932454c07bd2673ac7d6d9612d36182aae71e8b2` and the unchanged Weave.
+It consumes the merged System #24 graph as a whole. Ordinary Tasks execute in
+User mode and invoke Kernel calls through ECALL. Rebuild ABI 11/12 images and
+Task descriptors; there is no external Supervisor execution path.
+System owns Driver stack/argument/guard memory and its retained retirement.
+Hub continues to use exact Instance completion rather than inferring memory
+retirement from Task exit. The [consumer](tests/target/handoff/README.md) checks
+ABI 13, Ledger 13 and Capsule 2 in addition to its actual native calls.
+
 ## Build and verify
 
 Install Rust through rustup. The checkout pins `nightly-2026-11-13`, Rust source,
 rustfmt, Clippy and `riscv64gc-unknown-none-elf`. Git dependencies use immutable
-revisions and one Kernel ABI/Ledger 11/11 identity; commit `Cargo.lock`.
+revisions and one Kernel ABI/Ledger 13/13 identity; commit `Cargo.lock`.
 
 ```sh
 cargo fmt --all -- --check

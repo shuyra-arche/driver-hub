@@ -1,17 +1,31 @@
 # Driver Instance coordination
 
 System's caller-owned Instance v1 subset is available at immutable revision
-`f97524817ce240a0b0471be3b557ceb5a871fe14` (merged System #19). Its
-[contract matrix](https://github.com/shuyra-arche/system/blob/f97524817ce240a0b0471be3b557ceb5a871fe14/docs/instance.md)
+`470e97f38aa904c3702b665c0d225809b9f0d16e` (merged System #24, retaining the #19 subset). Its
+[contract matrix](https://github.com/shuyra-arche/system/blob/470e97f38aa904c3702b665c0d225809b9f0d16e/docs/instance.md)
 defines the actual Create/Start/Stop/Retire/Inspect/InspectOperation/Cancel and
 UnitRoot publication semantics. Hub consumes that public API/Client, not the
 historical Loader authorization or System Server internals.
 
 The matching graph selects Kernel API/Client
-`684f479c45dc2d94d405b32b4ffc6334a4233fc9`, Twine
-`8c68cbeffd024b4105a6a7c2f4baaab330994ca1` and Weave
+`789ffd19b5359f3de172fb9aad8a61f6a7113a64`, Twine
+`932454c07bd2673ac7d6d9612d36182aae71e8b2` and Weave
 `7a7d67fb3f190aeb43049d051b0972bcd53213bc`. Kernel main may be newer; the consumer
 selects the verified System graph as a whole rather than mixing revisions.
+
+## ABI 13 and execution
+
+Kernel ABI/Ledger are 13/13 and Capsule remains 2. Ordinary external Tasks run
+in User mode and use ECALL; Supervisor execution is Kernel-internal. ABI 11/12
+ELFs and old Task descriptors require rebuilding with the selected graph.
+System Loader owns the target stack, copied arguments, unmapped guard and
+backing/mapping retirement. Hub does not allocate foreign Task stacks or infer
+that their storage is reusable from Task exit. Retire completion remains the
+Instance owner's evidence.
+
+The selected System also publishes declaration-selected CreateFor/Owned; this
+Hub coordinator keeps using the caller-owned subset. No owner transfer or
+creation-policy bypass is implied by upgrading its provider graph.
 
 ## Independent ownership
 

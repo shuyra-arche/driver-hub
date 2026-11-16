@@ -108,6 +108,9 @@ fn cancelled_branch(owner: TaskId, request: Request, signal: PendId) {
 }
 
 pub fn controller(license: PendId, context: Context) {
+    assert_eq!(kernel_api::abi::VERSION, 13);
+    assert_eq!(kernel_api::boot::ledger::VERSION, 13);
+    assert_eq!(kernel_api::boot::capsule::VERSION, 2);
     let endpoint = find(|info| info.mark == Mark::new(7));
     let info = own();
     let UnitTarget::Task(caller) = info.target else {
@@ -464,6 +467,7 @@ pub fn controller(license: PendId, context: Context) {
     for signal in signals {
         retire(signal);
     }
+    let _ = writeln!(Console, "PASS hub-abi version=13 ledger=13 capsule=2");
     let _ = writeln!(
         Console,
         "PASS hub-machine native-authority=1 prepared-target=1 slots=2 managed-revoke=1 retained-device=1"

@@ -2,8 +2,12 @@
 
 This scenario injects Hub's production Machine/Signal Authority/Driver
 consumer into the ordinary
-controller User image of System's fixed `f97524817ce240a0b0471be3b557ceb5a871fe14`
-handoff fixture. The complete production System runs unchanged. The controller
+controller User image of System's fixed `470e97f38aa904c3702b665c0d225809b9f0d16e`
+handoff fixture. The complete production System runs unchanged, with its matching Kernel
+`789ffd19b5359f3de172fb9aad8a61f6a7113a64` and Twine
+`932454c07bd2673ac7d6d9612d36182aae71e8b2`. Ordinary Tasks follow the
+ABI 13 User/ECALL startup contract. The guest asserts ABI/Ledger/Capsule
+13/13/2, then exercises actual Caller, Pend, RPC and retirement calls. The controller
 uses the real supplied Instance endpoint, a caller-wide operation sequence,
 System-issued InstanceIds and native reply cleanup.
 
@@ -49,15 +53,22 @@ python3 tests/target/handoff/run.py /path/to/system-runtime-platform --system-ch
 ```
 
 The local System checkout is optional; otherwise the runner clones the provider.
-It creates a separate ignored overlay, checks its exact revision and uses the
+It creates an ignored `target/system-<full-System-SHA>/` overlay, preserving
+older revision evidence; checks its exact revision; and uses the
 committed User lock. The overlay reuses the fixed System heap, Driver,
 packer and checker; it replaces the main controller with the Hub consumer and strengthens the
 Driver withdrawal probe to require native Sign Denied, rather than any non-Busy
 error.
+The provider runner is unchanged: its public `--scenarios handoff` selects
+this scenario, and `--kernel-profile` records the actual selected profile and
+uses the provider's corresponding execution bounds. Existing CI uses release
+Kernel (60/90-second role/VM bounds) in both System profiles.
 The provider main file still includes its private Source for unselected provider
 roles, but the selected Hub controller does not call that implementation.
 The User image stays release while `--profile` selects the full System profile.
-The supplied Kernel profile is independent and must be recorded.
+The supplied Kernel profile is independent; pass `--kernel-profile debug`
+when selecting an actually built debug platform. A profile argument does not
+qualify an arbitrary Kernel binary.
 
 Inputs/hashes and a pointer to exact ELF/archive/lock/serial/JSON evidence are
 under `target/`. Failure is not retirement evidence. The provider runner's normal
