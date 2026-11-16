@@ -47,3 +47,7 @@ path = "tests/pci/mod.rs"
 [[test]]
 name = "service"
 path = "tests/service.rs"
+
+[[test]]
+name = "supply"
+path = "tests/supply.rs"

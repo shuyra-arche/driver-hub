@@ -12,8 +12,8 @@ weave = { git = "https://github.com/shuyra-arche/weave.git", rev = "7a7d67fb3f19
 twine = { git = "https://github.com/shuyra-arche/twine.git", rev = "932454c07bd2673ac7d6d9612d36182aae71e8b2" }
 kernel-api = { git = "https://github.com/shuyra-arche/kernel.git", rev = "789ffd19b5359f3de172fb9aad8a61f6a7113a64" }
 kernel-client = { git = "https://github.com/shuyra-arche/kernel.git", rev = "789ffd19b5359f3de172fb9aad8a61f6a7113a64" }
-system-api = { git = "https://github.com/shuyra-arche/system.git", rev = "470e97f38aa904c3702b665c0d225809b9f0d16e" }
-system-client = { git = "https://github.com/shuyra-arche/system.git", rev = "470e97f38aa904c3702b665c0d225809b9f0d16e" }
+system-api = { git = "https://github.com/shuyra-arche/system.git", rev = "332d9d2e15f6bc4e1e8d94e4db2591b1a53ae613" }
+system-client = { git = "https://github.com/shuyra-arche/system.git", rev = "332d9d2e15f6bc4e1e8d94e4db2591b1a53ae613" }
 
 [profile.dev]
 panic = "abort"

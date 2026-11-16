@@ -13,5 +13,6 @@ pub mod lease;
 pub mod machine;
 pub mod pci;
 pub mod service;
+pub mod supply;
 
 pub use machine::{Limits, Machine};
