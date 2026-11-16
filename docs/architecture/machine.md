@@ -95,7 +95,11 @@ does not authorize reassignment.
 ## Native Signal allocation delivery
 
 The [Signal Authority](authority.md) and `machine/supply.rs` now connect real
-imported CPU Sign rights to each Binding's owned native leases. The target is
+imported CPU Sign rights to each Binding's owned native leases.
+`machine/installation.rs` adds public System Register/Install through the same
+Authority admission and bound target, retaining one [Supply owner](supply.md)
+per slot. Remote terminal receipts and local offering-root settlement are both
+required before Authorization clears. The target is
 queried from its bound System Prepared Instance. Driver Start requires all
 Native resource slots Delivered and fresh source/policy checks. Release,
 withdrawal, failure and settle prevent further delivery and require explicit
@@ -111,8 +115,8 @@ This is an internal executor path, not a generic Hub Supply RPC or full Hub Unit
 
 ## Selected native graph
 
-Current consumption selects merged System #24
-`470e97f38aa904c3702b665c0d225809b9f0d16e`, Kernel
+Current consumption selects merged System #27
+`332d9d2e15f6bc4e1e8d94e4db2591b1a53ae613`, Kernel
 `789ffd19b5359f3de172fb9aad8a61f6a7113a64` (ABI/Ledger 13/13), Twine
 `932454c07bd2673ac7d6d9612d36182aae71e8b2` and unchanged Weave. All ordinary
 Tasks use User mode and ECALL. The Signal Authority/Lease ownership contract

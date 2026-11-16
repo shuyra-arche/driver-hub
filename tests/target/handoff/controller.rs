@@ -9,7 +9,8 @@ use hub_server::{
     authority::native::{Import, Native as Authority},
     driver::{self, Native},
     lease::{self, Correlation, Lease, Request, State},
-    machine::{DriverError, SupplyError},
+    machine::{DriverError, InstallError},
+    supply as remote,
 };
 
 fn next(ids: &Cell<u64>) -> api::OperationId {
@@ -28,7 +29,7 @@ fn cleanup<F: FnMut() -> Option<api::OperationId>>(native: &mut Native<F>) {
     }
 }
 
-type Hub = Machine<Authority>;
+type Hub = Machine<Authority<remote::Supply>>;
 
 fn poll<F: FnMut() -> Option<api::OperationId>>(
     hub: &mut Hub,
@@ -107,6 +108,90 @@ fn cancelled_branch(owner: TaskId, request: Request, signal: PendId) {
     close_lease(&mut interrupted);
 }
 
+#[derive(Debug)]
+enum Fault {
+    Native(remote::NativeError),
+    LostReply,
+}
+struct Probe<C> {
+    inner: C,
+    lose_next: bool,
+    just_lost: bool,
+    lost: usize,
+    queries: usize,
+    accepted: Option<supply::InstallId>,
+}
+// This wrapper never fabricates a receipt: it discards one real authenticated
+// Install reply after native submission, preserving the SDK cleanup in inner.
+unsafe impl<C: remote::Control<Error = remote::NativeError>> remote::Control for Probe<C> {
+    type Error = Fault;
+    fn peer(&self) -> system_protocol::TaskId {
+        self.inner.peer()
+    }
+    fn caller(&self) -> system_protocol::TaskId {
+        self.inner.caller()
+    }
+    fn allocate_registration(&mut self) -> Option<supply::RegistrationId> {
+        self.inner.allocate_registration()
+    }
+    fn allocate_installation(&mut self) -> Option<supply::InstallId> {
+        self.inner.allocate_installation()
+    }
+    fn execute(&mut self, command: remote::Command, wait: Wait) -> Result<remote::Response, Fault> {
+        let installed = match &command {
+            remote::Command::Install(request) => Some(request.id),
+            _ => None,
+        };
+        if matches!(command, remote::Command::InspectInstall(_)) {
+            self.queries += 1;
+        }
+        let response = self.inner.execute(command, wait).map_err(Fault::Native)?;
+        if let remote::Response::Install(Outcome::Success(status)) = &response {
+            if matches!(
+                status.state,
+                supply::InstallState::Pending | supply::InstallState::Granted
+            ) {
+                self.accepted = Some(status.id);
+                if installed == Some(status.id) && self.lose_next {
+                    self.lose_next = false;
+                    self.just_lost = true;
+                    self.lost += 1;
+                    return Err(Fault::LostReply);
+                }
+            }
+        }
+        Ok(response)
+    }
+}
+fn supply_step<C: remote::Control<Error = remote::NativeError>>(
+    hub: &mut Hub,
+    allocation: hub_api::AllocationId,
+    control: &mut Probe<C>,
+    closing: bool,
+) -> remote::Progress {
+    let result = if closing {
+        hub.finish_system_supply(allocation, control, deadline())
+    } else {
+        hub.advance_system_supply(allocation, control, deadline())
+    };
+    if control.just_lost {
+        assert!(matches!(
+            result,
+            Err(InstallError::Supply(remote::Error::Control(
+                Fault::LostReply
+            )))
+        ));
+        control.just_lost = false;
+    } else if let Err(error) = result {
+        assert!(
+            matches!(&error, InstallError::Supply(remote::Error::Control(Fault::Native(error))) if error.is_busy()),
+            "{error:?}"
+        );
+    }
+    tick(budget());
+    hub.system_supply(allocation).unwrap()
+}
+
 pub fn controller(license: PendId, context: Context) {
     assert_eq!(kernel_api::abi::VERSION, 13);
     assert_eq!(kernel_api::boot::ledger::VERSION, 13);
@@ -159,6 +244,40 @@ pub fn controller(license: PendId, context: Context) {
     .0
     .unwrap()
     .current;
+    let supplied = find(|info| info.mark == Mark::new(8));
+    assert_eq!(supplied.owner, endpoint.owner);
+    let registrations = Rc::new(Cell::new(0u64));
+    let installations = Rc::new(Cell::new(0u64));
+    let reg_ids = registrations.clone();
+    let install_ids = installations.clone();
+    let supply_native = unsafe {
+        remote::Native::bind(
+            supplied.token,
+            supplied.owner,
+            caller,
+            license,
+            context.clone(),
+            move || {
+                let id = reg_ids.get().checked_add(1)?;
+                reg_ids.set(id);
+                supply::RegistrationId::new(id)
+            },
+            move || {
+                let id = install_ids.get().checked_add(1)?;
+                install_ids.set(id);
+                supply::InstallId::new(id)
+            },
+        )
+    }
+    .unwrap();
+    let mut supplied = Probe {
+        inner: supply_native,
+        lose_next: false,
+        just_lost: false,
+        lost: 0,
+        queries: 0,
+        accepted: None,
+    };
     let mut discovery = discovery(license, context.clone());
     let mut signals = vec![];
     let mut imported = vec![];
@@ -254,27 +373,25 @@ pub fn controller(license: PendId, context: Context) {
         binding: failed_binding,
         slot: 0,
     };
-    hub.prepare_supply(
-        failed_allocation,
-        &mut native,
-        Mark::new(DEVICE),
-        deadline(),
-    )
-    .unwrap();
+    let pending = hub
+        .prepare_system_supply(
+            failed_allocation,
+            &mut native,
+            &mut supplied,
+            "controller",
+            Mark::new(DEVICE),
+            deadline(),
+        )
+        .unwrap();
     cleanup(&mut native);
-    assert_eq!(
-        hub.advance_supply(failed_allocation).unwrap(),
-        State::DeliveryPending
-    );
+    while supplied.accepted != Some(pending.installation) {
+        supply_step(&mut hub, failed_allocation, &mut supplied, false);
+    }
+    // This source was registered and Install was actually accepted before the
+    // ancestor is revoked. System owns its partial definition/lease cleanup.
     retire(imported[4]);
-    assert!(matches!(
-        hub.advance_supply(failed_allocation),
-        Err(SupplyError::Lease(lease::Error::Kernel(
-            kernel_api::abi::call::pend::PendFail::Denied
-        )))
-    ));
     assert_eq!(snapshot(&hub, caller, failed_device).pending, 7);
-    close_supplies(&mut hub, failed_binding, 1);
+    close_supplies(&mut hub, failed_binding, &mut supplied, 1);
     assert_eq!(snapshot(&hub, caller, failed_device).pending, 5);
     hub.close_driver(failed_binding, &mut native, deadline())
         .unwrap();
@@ -331,31 +448,54 @@ pub fn controller(license: PendId, context: Context) {
         for slot in 0..2 {
             let allocation = hub_api::AllocationId { binding, slot };
             let mark = Mark::new(DEVICE + u64::from(slot));
-            assert_eq!(
-                hub.prepare_supply(allocation, &mut native, mark, deadline())
-                    .unwrap(),
-                State::RootPending
-            );
+            let created = hub
+                .prepare_system_supply(
+                    allocation,
+                    &mut native,
+                    &mut supplied,
+                    "controller",
+                    mark,
+                    deadline(),
+                )
+                .unwrap();
+            assert_eq!(created.state, remote::State::Offering);
             cleanup(&mut native);
             assert_eq!(
-                hub.prepare_supply(allocation, &mut native, mark, deadline())
-                    .unwrap(),
-                State::RootPending
+                hub.prepare_system_supply(
+                    allocation,
+                    &mut native,
+                    &mut supplied,
+                    "controller",
+                    mark,
+                    deadline()
+                )
+                .unwrap(),
+                created
             );
-            while hub.supply(allocation).unwrap().is_none() {
-                match hub.advance_supply(allocation) {
-                    Ok(_) => (),
-                    Err(SupplyError::Lease(lease::Error::Busy)) => tick(budget()),
-                    other => panic!("managed supply: {other:?}"),
-                }
+            if round == 0 && slot == 0 {
+                supplied.lose_next = true;
             }
-            let delivered = hub.supply(allocation).unwrap().unwrap();
+            while hub.system_supply(allocation).unwrap().delivery.is_none() {
+                supply_step(&mut hub, allocation, &mut supplied, false);
+            }
+            let delivered = hub.system_supply(allocation).unwrap().delivery.unwrap();
             assert_eq!(delivered.recipient.get() as u64, observed.task.get());
             assert_eq!(delivered.correlation.device, device);
             assert_eq!(delivered.correlation.allocation, allocation);
             for _ in 0..4 {
-                assert_eq!(hub.advance_supply(allocation).unwrap(), State::Delivered);
-                assert_eq!(hub.supply(allocation).unwrap(), Some(delivered));
+                let replay = hub
+                    .prepare_system_supply(
+                        allocation,
+                        &mut native,
+                        &mut supplied,
+                        "controller",
+                        mark,
+                        deadline(),
+                    )
+                    .unwrap();
+                assert_eq!(replay.delivery, Some(delivered));
+                assert_eq!(replay.registration, created.registration);
+                assert_eq!(replay.installation, created.installation);
             }
             if slot == 0 {
                 assert!(matches!(
@@ -436,14 +576,14 @@ pub fn controller(license: PendId, context: Context) {
                 api::Phase::Retired
             );
             cleanup(&mut native);
-            close_supplies(&mut hub, old, 2);
+            close_supplies(&mut hub, old, &mut supplied, 2);
             retained(&mut hub, caller, &hub_ids, old_device, 9);
             ping(&resource, &observed, license, context.clone(), false);
         }
         previous = Some((binding, resource, observed, device));
     }
     let (binding, resource, observed, device) = previous.take().unwrap();
-    close_supplies(&mut hub, binding, 2);
+    close_supplies(&mut hub, binding, &mut supplied, 2);
     assert_eq!(snapshot(&hub, caller, device).pending, 45); // Device + Instance, both slots
     ping(&resource, &observed, license, context.clone(), true);
     retire(resource.token.try_into().unwrap());
@@ -460,6 +600,13 @@ pub fn controller(license: PendId, context: Context) {
     );
     cleanup(&mut native);
     retained(&mut hub, caller, &hub_ids, device, 9);
+    assert_eq!(supplied.lost, 1);
+    assert!(supplied.queries > 0);
+    while let Err(error) = supplied.inner.finish() {
+        assert!(error.is_busy(), "{error:?}");
+        tick(budget());
+    }
+    assert!(supplied.inner.is_finished());
     assert_eq!(hub.settle(), 3); // three quarantined CPU devices, never reported reusable
     for token in &imported[..4] {
         retire(*token);
@@ -467,6 +614,10 @@ pub fn controller(license: PendId, context: Context) {
     for signal in signals {
         retire(signal);
     }
+    let _ = writeln!(
+        Console,
+        "PASS hub-system-supply register=1 prepared-install=1 lost-reply=1 cancel=1 withdraw=1 system-lender=1"
+    );
     let _ = writeln!(Console, "PASS hub-abi version=13 ledger=13 capsule=2");
     let _ = writeln!(
         Console,
@@ -549,20 +700,25 @@ fn snapshot(hub: &Hub, caller: TaskId, device: hub_api::DeviceRef) -> hub_api::S
     assert_eq!(reply.failure, hub_api::Fail::None);
     reply.snapshot
 }
-fn close_supplies(hub: &mut Hub, binding: hub_api::BindingId, count: u8) {
+fn close_supplies<C: remote::Control<Error = remote::NativeError>>(
+    hub: &mut Hub,
+    binding: hub_api::BindingId,
+    control: &mut Probe<C>,
+    count: u8,
+) {
     for slot in 0..count {
         let allocation = hub_api::AllocationId { binding, slot };
-        loop {
-            match hub.finish_supply(allocation) {
-                Ok(State::Closed) => break,
-                Err(SupplyError::Lease(lease::Error::Busy)) => tick(budget()),
-                other => panic!("managed retirement: {other:?}"),
-            }
-        }
-        assert_eq!(hub.supply(allocation).unwrap(), None);
-        assert_eq!(hub.advance_supply(allocation).unwrap(), State::Closed);
+        while supply_step(hub, allocation, control, true).state != remote::State::Closed {}
+        let progress = hub.system_supply(allocation).unwrap();
+        assert_eq!(progress.delivery, None);
+        assert_eq!(
+            hub.advance_system_supply(allocation, control, deadline())
+                .unwrap(),
+            progress
+        );
     }
 }
+
 fn retained(
     hub: &mut Hub,
     caller: TaskId,

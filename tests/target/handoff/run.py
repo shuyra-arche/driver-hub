@@ -6,7 +6,7 @@ from pathlib import Path
 import shutil
 import subprocess
 
-SYSTEM = '470e97f38aa904c3702b665c0d225809b9f0d16e'
+SYSTEM = '332d9d2e15f6bc4e1e8d94e4db2591b1a53ae613'
 
 
 def main():
@@ -30,7 +30,7 @@ def main():
     assert actual == SYSTEM, f'wrong System source: {actual}'
     # Build from immutable sources on every invocation, preserving prior result
     # directories under ignored target/. The original checkout is never edited.
-    for path in ['tests/guest/handoff/Cargo.toml', 'tests/guest/handoff/main.rs', 'tests/guest/system/run.py']:
+    for path in ['tests/guest/handoff/Cargo.toml', 'tests/guest/handoff/main.rs', 'tests/guest/system/run.py', 'tests/guest/system/pack/handoff.rs']:
         original = subprocess.check_output(['git', 'show', f'{SYSTEM}:{path}'], cwd=overlay)
         (overlay / path).write_bytes(original)
     user = overlay / 'tests/guest/handoff'
@@ -52,7 +52,25 @@ def main():
     old = 'assert!(!error.source.is_busy(), "Busy is not revocation evidence");'
     assert text.count(old) == 1, 'provider withdrawal probe changed'
     text = text.replace(old, 'assert_eq!(error.source, kernel_api::abi::call::sign::SignFail::Denied);')
+    # The selected Driver receives its grant from System, rather than directly
+    # from Hub. The actual UnitRoot's issuer is independently observed below.
+    old = 'assert_eq!(access.root.registration.task.get(), caller.get() as u64);'
+    assert text.count(old) == 1, 'provider Driver root probe changed'
+    text = text.replace(old, old + '\n    assert_eq!(device.lender.get() as u64, access.root.registration.instance.system.get());')
     main.write_text(text)
+    catalog = overlay / 'tests/guest/system/pack/handoff.rs'
+    text = catalog.read_text()
+    old = '    if matches!(scenario, "supply" | "supply-auth" | "supply-contend") {'
+    assert text.count(old) == 1, 'provider controller declaration changed'
+    text = text.replace(old, '''    if scenario == "handoff" {
+        let mut service = catalog[0].supply.bindings[0].clone();
+        service.source = "system".into();
+        service.resource = "supply".into();
+        service.slot = 8;
+        catalog[0].supply.bindings.push(service);
+    }
+''' + old)
+    catalog.write_text(text)
     runner = overlay / 'tests/guest/system/run.py'
     shutil.copyfile(test / 'Cargo.lock', user / 'Cargo.lock')
     inputs = {
@@ -85,6 +103,7 @@ def main():
         and b'PASS hub-lease native=1 replay=1 cancel=1 ancestor-revoke=1 withdrawal=1' in path.read_bytes()
         and b'PASS hub-machine native-authority=1 prepared-target=1 slots=2 managed-revoke=1 retained-device=1' in path.read_bytes()
         and b'PASS hub-abi version=13 ledger=13 capsule=2' in path.read_bytes()
+        and b'PASS hub-system-supply register=1 prepared-install=1 lost-reply=1 cancel=1 withdraw=1 system-lender=1' in path.read_bytes()
         for path in logs
     ), 'missing Hub consumer or native lease assertion'
 

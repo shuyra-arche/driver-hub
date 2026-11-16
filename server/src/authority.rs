@@ -8,10 +8,23 @@ pub mod native;
 /// Read-only delivery progress, never a live authorization observation.
 pub trait SupplyRecord {
     fn delivered(&self) -> bool;
+    fn request(&self) -> lease::Request;
 }
+impl SupplyRecord for crate::supply::Supply {
+    fn delivered(&self) -> bool {
+        self.progress().state == crate::supply::State::Granted
+    }
+    fn request(&self) -> lease::Request {
+        self.request()
+    }
+}
+
 impl SupplyRecord for lease::Lease {
     fn delivered(&self) -> bool {
         self.delivery().is_some()
+    }
+    fn request(&self) -> lease::Request {
+        self.request()
     }
 }
 
@@ -20,6 +33,9 @@ impl SupplyRecord for lease::Lease {
 pub enum NoSupply {}
 impl SupplyRecord for NoSupply {
     fn delivered(&self) -> bool {
+        match *self {}
+    }
+    fn request(&self) -> lease::Request {
         match *self {}
     }
 }
@@ -47,7 +63,7 @@ pub struct GrantRequest {
 /// unrecorded grants for that correlation. Only under this sole-owner contract
 /// may Machine discharge that exact slot's managed Authorization duty after
 /// Lease::Closed; Device, source and Instance duties remain independent.
-pub unsafe trait SupplyAuthority: Authority<Supply = lease::Lease> {
+pub unsafe trait SupplyAuthority: Authority {
     fn owner(&self) -> TaskId;
     fn lease_request(&mut self, request: GrantRequest) -> Result<lease::Request, Fail>;
 }
