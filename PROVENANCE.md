@@ -16,10 +16,10 @@ platform authorization and retirement; its Host models are not hardware proof.
 
 The CPU-only consumer runner under `tests/target/handoff` reuses the fixed
 System handoff fixture skeleton from
-`shuyra-arche/system@470e97f38aa904c3702b665c0d225809b9f0d16e` in a temporary
+`shuyra-arche/system@332d9d2e15f6bc4e1e8d94e4db2591b1a53ae613` in a temporary
 checkout. It injects the Hub controller while retaining the provider's heap,
 Driver, packer and lifecycle checker. The selected controller uses Hub-owned
-native leases; unselected provider roles still compile their private Sign source. The provider's Git
+System Supply registration/installation with retained native offering roots; unselected provider roles still compile their private Sign source. The provider's Git
 source and attribution remain present; this reuse does not infer a new license
 grant or import private System implementation into Hub production packages.
 

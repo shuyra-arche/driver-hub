@@ -50,8 +50,8 @@ unknown duties; a failed preparation cannot assume no prior effects. Native
 accepts no Device retirement receipts. System completion clears only Instance
 bits. Quarantined Device responsibility therefore still blocks reuse.
 
-Authority selects an associated Supply record: Native uses the actual !Send/
-!Sync Lease; external grant owners may use the uninhabited NoSupply. Binding
+Authority selects an associated Supply record: Native defaults to the actual
+!Send/!Sync Lease, or `Native<supply::Supply>` stores the System-backed owner; external grant owners may use the uninhabited NoSupply. Binding
 stores that type directly. Ordinary coordinators retain their Send behavior,
 while Native Machine stays in its actual Kernel Task without an unsafe Send
 implementation or a second allocation table.
@@ -67,27 +67,28 @@ contract; the guest exercises actual ECALL-backed public operations rather
 than reading privileged CSRs.
 
 
-Fixed System `470e97f38aa904c3702b665c0d225809b9f0d16e` retains the same
-Supply v4 consumer interface: Acquire/Inspect/Release/Cancel, with no public
-external source registration. Supply RPC Acquire
-requires target == actual caller. It cannot broker a Hub request to another
-Task. This increment implements the trusted internal allocation/lease executor
-using the public System Instance observation and public Kernel calls; it adds
-no competing generic Supply server and claims no System Supply RPC coverage.
+Fixed System `332d9d2e15f6bc4e1e8d94e4db2591b1a53ae613` supplies public
+external Source Register/Withdraw/InspectSource and post-Prepared
+Install/InspectInstall/CancelInstall operations. `prepare_system_supply` uses the
+same trusted Authority request and actual bound Driver observation as direct
+`prepare_supply`, then stores its per-allocation [Supply owner](supply.md) before
+effects. Acquire remains self-only; the Hub never uses it to impersonate a
+foreign receiver. System is the actual immediate lender of installed grants.
 
 Host tests check import shape, codec, replay, partial cancellation, wrong phase,
 retained unknown slots and journal recovery. They do not emulate Kernel effects.
 The [native consumer](../../tests/target/handoff/README.md) uses real production
-Machine/Authority/Lease and complete fixed System. Its trusted provider and Hub
+Machine/Authority/Supply and complete fixed System. Its trusted provider and Hub
 are the same controller Task with actual self-Accorded imports; cross-Task
 provider admission is not claimed. Two Driver Teams receive two independent
 Signal slots each. A third Prepared Driver exercises imported ancestor
-withdrawal after private-root creation. Native replays, target selection,
+withdrawal after accepted registration/installation. A test transport drops one real
+authenticated successful Install reply; recovery queries the original ID. Native replays, target selection,
 receiver Sign Denied, exact Authorization/Instance settlement, retained Device
 bits and denied rebinding are asserted with the original provider lifecycle
 checker, budgets and actual root exit.
 
 This is not a standalone Hub Unit, hardware import, device quiescence, Pages
-mapping proof, full System Supply integration or Vanllia product acceptance.
+mapping proof, full generic Supply coverage or Vanllia product acceptance.
 ABI/Ledger/Capsule remain 13/13/2 and all provider revisions stay fixed. Protected
 ECAM custody and IRQ/External admission require separate provider contracts.

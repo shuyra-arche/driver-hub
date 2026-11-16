@@ -29,7 +29,9 @@ Machine keeps the single resource and Binding commit boundary. Its
 configuration remains an independent effect mechanism, without a second
 resource allocator. The [native lease contract](docs/architecture/lease.md) keeps
 a private Kernel Pend branch and its cleanup responsibility in one Task-local
-owner. Each Binding directly stores its allocation leases; delivery selects
+owner. The [System Supply owner](docs/architecture/supply.md) retains public
+Register/Install journals and its local offering root together. Each Binding
+directly stores its selected allocation owner; delivery selects
 the actual Task from the bound System Prepared Instance. A managed lease may
 settle its own Authorization duty under the sole-owner contract; Device and
 Instance duties require their independent owners.
@@ -44,6 +46,7 @@ The Server registers these integration-test targets explicitly:
 | `pci` | `tests/pci/mod.rs` | Geometry and partial-effect recovery |
 | `authority` | `tests/authority.rs` | Trusted Signal import shape (Host only) |
 | `lease` | `tests/lease.rs` | Native lease request boundaries (Host only) |
+| `supply` | `tests/supply.rs` | Register/Install journals and terminal ownership (Host only) |
 | `service` | `tests/service.rs` | Authenticated ingress and reply routing |
 
 API codec tests remain in `api/tests/`. Shared Host models remain under
@@ -74,7 +77,7 @@ withdrawal preserve reservations until the exact owners establish device,
 authorization and Instance retirement. System #19 now supplies real InstanceId
 and the caller-owned Instance v1 contract; the Hub consumer uses that fixed
 subset. The native lease mechanism owns private Pend branches; hardware platform Authority,
-System Supply integration and restart takeover remain separate work. On Hub death, the
+System Supply now carries CPU-only grants through its public Register/Install contract; hardware grants and restart takeover remain separate work. On Hub death, the
 integration owner must retain obligations or quarantine resources until real
 retirement; a new incarnation ID alone is insufficient.
 
@@ -88,10 +91,11 @@ unimplemented; no PCI/Router/IOMMU Unit or repository is retired by this change.
 
 ## Native execution contract
 
-The selected graph is System `470e97f38aa904c3702b665c0d225809b9f0d16e`,
+The selected graph is System `332d9d2e15f6bc4e1e8d94e4db2591b1a53ae613`,
 Kernel `789ffd19b5359f3de172fb9aad8a61f6a7113a64` (ABI/Ledger 13/13),
 Twine `932454c07bd2673ac7d6d9612d36182aae71e8b2` and the unchanged Weave.
-It consumes the merged System #24 graph as a whole. Ordinary Tasks execute in
+It consumes the merged System #27 graph as a whole, including #26 external
+Source registration and #27 post-Prepared installation. Ordinary Tasks execute in
 User mode and invoke Kernel calls through ECALL. Rebuild ABI 11/12 images and
 Task descriptors; there is no external Supervisor execution path.
 System owns Driver stack/argument/guard memory and its retained retirement.
@@ -131,7 +135,8 @@ The [native Instance consumer](tests/target/handoff/README.md) runs Hub's
 production Driver/Native coordinator against the fixed complete System in QEMU.
 It checks three Driver Teams: one stopped before Start after source withdrawal,
 and two with two Signal slots each. It verifies Machine reservation, actual
-System-selected recipients, native provenance, Start admission, UnitRoot
+System-selected recipients, public Source registration/Prepared installation,
+recovery of a lost real Install reply, native provenance, Start admission, UnitRoot
 publication/direct RPC, replacement, cancellation, revocation and Instance
 retirement. Device duties remain retained and block rebinding. It is a CPU-only consumer
 scenario, not full Hub startup or device retirement acceptance.
@@ -141,7 +146,9 @@ parallel handoff profiles and evidence retention. Cache hits still execute the
 locked build and every selected VM; caches contain no prior VM results.
 
 This is an unreleased 0.x API. Custom `Authority` implementations must now
-select their `Supply` record and implement `check_start`; externally managed
+select their `Supply` record and implement `check_start`; `SupplyRecord` also
+exposes its checked request. Native defaults to direct `Lease`, while
+`Native<supply::Supply>` selects the System-backed owner. Externally managed
 owners can use `NoSupply`. Existing wire tags are unchanged; older consumers
 reject the new Signal tag until migrated. This remains an incompatible 0.x API replacement. Consumers must migrate after the
 provider contract is reviewed and fixed; no legacy forwarding layer is supplied.

@@ -42,7 +42,8 @@ Host tests check request rejection and rights/range boundaries. The CPU-only
 [QEMU consumer](../../tests/target/handoff/README.md) exercises production lease
 code with actual Kernel derivation, live target Tasks, ancestor revocation,
 replay and withdrawal. It does not prove Pages mapping effects, device drain,
-IRQ/External admission, System Supply RPC integration, or full Hub boot.
+IRQ/External admission or full Hub boot. System Supply RPC integration is
+a separate per-allocation [owner](supply.md) using these local root primitives.
 Standalone Pend branch settlement never clears Machine duties or proves
 Instance retirement. With the [Signal Authority](authority.md), Machine owns
 the sole lease for an exact slot and attempt and may discharge only that

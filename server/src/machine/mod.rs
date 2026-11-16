@@ -1,9 +1,11 @@
 mod binding;
 mod device;
+mod installation;
 mod instance;
 mod operation;
 mod supply;
 
+pub use installation::InstallError;
 pub use instance::DriverError;
 pub use supply::SupplyError;
 

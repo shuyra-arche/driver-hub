@@ -90,6 +90,10 @@ impl Request {
         self.recipient
     }
 
+    pub(crate) const fn source(self) -> PendId {
+        self.source
+    }
+
     pub const fn mark(self) -> Mark {
         self.mark
     }
@@ -253,25 +257,34 @@ impl Lease {
             self.state = State::Closed;
             return Ok(self.state);
         };
-        ensure_owner(self.owner)?;
-        match kernel_client::call::pend::return_(root) {
-            Ok(()) => {
+        match unsafe { retire_owned_root(self.owner, root) }? {
+            true => {
                 self.root = None;
                 self.state = State::Closed;
                 Ok(self.state)
             }
-            Err(error) if error.source.is_busy() => Err(Error::Busy),
-            Err(error) if error.source == PendFail::Denied => {
-                if root_is_absent(self.owner, root)? {
-                    self.root = None;
-                    self.state = State::Closed;
-                    Ok(self.state)
-                } else {
-                    Err(Error::Kernel(PendFail::Denied))
-                }
-            }
-            Err(error) => Err(Error::Kernel(error.source)),
+            false => Err(Error::Kernel(PendFail::Denied)),
         }
+    }
+}
+
+/// Retire a private root created in `owner`'s local Pend table and never
+/// transferred as that same Pend. Accorded descendants may have been derived
+/// from it. Return success, or a valid same-caller ledger collection proving
+/// this exact root is absent, is required before reporting completion.
+///
+/// # Safety
+/// Call only from the actual `owner` Task and only for a root that owner
+/// created/owns locally and has never transferred or reused. Its descendants
+/// and any higher-level responsibility must remain with the caller until
+/// `Ok(true)`.
+pub(crate) unsafe fn retire_owned_root(owner: TaskId, root: PendId) -> Result<bool, Error> {
+    ensure_owner(owner)?;
+    match kernel_client::call::pend::return_(root) {
+        Ok(()) => Ok(true),
+        Err(error) if error.source.is_busy() => Err(Error::Busy),
+        Err(error) if error.source == PendFail::Denied => root_is_absent(owner, root),
+        Err(error) => Err(Error::Kernel(error.source)),
     }
 }
 
@@ -292,6 +305,21 @@ fn accord(
     .to_bytes();
     kernel_client::call::pend::accord(VirtAddr::new(request.as_ptr().addr()))
         .map_err(|error| map_kernel(error.source))
+}
+
+/// Create a local, Task-owned branch after checking the actual Kernel caller.
+///
+/// # Safety
+/// `source` must be a genuine local Pend in `owner`'s table, and the caller
+/// must retain all obligations attached to that source.
+pub(crate) unsafe fn accord_owned(
+    owner: TaskId,
+    source: PendId,
+    target: AccordTarget,
+    mark: Mark,
+    limits: Limits,
+) -> Result<PendId, Error> {
+    accord(owner, source, target, mark, limits)
 }
 
 fn ensure_owner(owner: TaskId) -> Result<(), Error> {

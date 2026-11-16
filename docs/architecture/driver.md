@@ -1,8 +1,8 @@
 # Driver Instance coordination
 
 System's caller-owned Instance v1 subset is available at immutable revision
-`470e97f38aa904c3702b665c0d225809b9f0d16e` (merged System #24, retaining the #19 subset). Its
-[contract matrix](https://github.com/shuyra-arche/system/blob/470e97f38aa904c3702b665c0d225809b9f0d16e/docs/instance.md)
+`332d9d2e15f6bc4e1e8d94e4db2591b1a53ae613` (merged System #27, retaining the #19 subset). Its
+[contract matrix](https://github.com/shuyra-arche/system/blob/332d9d2e15f6bc4e1e8d94e4db2591b1a53ae613/docs/instance.md)
 defines the actual Create/Start/Stop/Retire/Inspect/InspectOperation/Cancel and
 UnitRoot publication semantics. Hub consumes that public API/Client, not the
 historical Loader authorization or System Server internals.
@@ -70,11 +70,13 @@ failures block further calls and retain their cleanup owner.
 
 ## Resource and service boundaries
 
-System-owned catalog sources can be delivered through System Supply. A Hub-owned
-source requires actual Kernel delegation and a retained lease owner checking
-caller, target, scope and revocation lineage. The System fixture's private native
-Supply module is not a public SDK and must not be imported into Hub production
-code. The Instance consumer alone does not implement a native resource Authority.
+System's public Register/Install contract now carries Hub-owned CPU Object
+Sign/Clone rights into an exact caller-owned Prepared Instance. Machine uses its
+bound Driver observation as the target; it never accepts an arbitrary recipient
+from the wire. The [Supply owner](supply.md) retains registration, installation
+and local offering-root retirement separately from this Instance journal. Its
+caller and System peer must match the Driver coordinator's. The System fixture's
+private native Supply module remains outside Hub production code.
 
 Drivers publish through their actual initial-Task UnitRoot Grant. Publication
 and stable-name replacement require the provider's readiness and revision CAS;

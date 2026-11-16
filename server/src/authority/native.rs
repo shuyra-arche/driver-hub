@@ -20,7 +20,7 @@ use kernel_api::{
 };
 
 use crate::{
-    authority::{Authority, GrantRequest, SupplyAuthority},
+    authority::{Authority, GrantRequest, SupplyAuthority, SupplyRecord},
     lease,
 };
 
@@ -92,13 +92,13 @@ impl Import {
 /// The only supported native provider implementation. It is !Send/!Sync and
 /// must remain in the Task owning each imported local Pend.
 #[must_use = "retain Native and its imported source duties for their full lifetime"]
-pub struct Native {
+pub struct Native<S = lease::Lease> {
     owner: TaskId,
     imports: alloc::vec::Vec<Import>,
-    _task_local: PhantomData<*mut ()>,
+    _task_local: PhantomData<(*mut (), S)>,
 }
 
-impl Native {
+impl<S> Native<S> {
     /// Construct a task-local native authority. This constructor performs no
     /// Kernel effect; it retains the caller-supplied import descriptions.
     ///
@@ -195,8 +195,8 @@ impl Native {
     }
 }
 
-unsafe impl Authority for Native {
-    type Supply = lease::Lease;
+unsafe impl<S: SupplyRecord> Authority for Native<S> {
+    type Supply = S;
 
     fn check_offer(&mut self, provider: TaskId, offer: &Offer) -> Result<(), Fail> {
         self.offered_imports(provider, offer)
@@ -239,7 +239,7 @@ unsafe impl Authority for Native {
     }
 }
 
-unsafe impl SupplyAuthority for Native {
+unsafe impl<S: SupplyRecord> SupplyAuthority for Native<S> {
     fn owner(&self) -> TaskId {
         self.owner
     }

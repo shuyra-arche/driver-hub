@@ -2,14 +2,16 @@
 
 This scenario injects Hub's production Machine/Signal Authority/Driver
 consumer into the ordinary
-controller User image of System's fixed `470e97f38aa904c3702b665c0d225809b9f0d16e`
+controller User image of System's fixed `332d9d2e15f6bc4e1e8d94e4db2591b1a53ae613`
 handoff fixture. The complete production System runs unchanged, with its matching Kernel
 `789ffd19b5359f3de172fb9aad8a61f6a7113a64` and Twine
 `932454c07bd2673ac7d6d9612d36182aae71e8b2`. Ordinary Tasks follow the
 ABI 13 User/ECALL startup contract. The guest asserts ABI/Ledger/Capsule
 13/13/2, then exercises actual Caller, Pend, RPC and retirement calls. The controller
 uses the real supplied Instance endpoint, a caller-wide operation sequence,
-System-issued InstanceIds and native reply cleanup.
+System-issued InstanceIds and native reply cleanup. The trusted controller
+declaration also supplies the public System Supply endpoint at mark 8; Driver
+declarations contain no device binding, so grants are installed after Prepared.
 
 Three Driver Teams are prepared: one is closed before Start after its imported
 source is revoked, and two are started with two independently imported Signal
@@ -21,19 +23,29 @@ are checked. Hub's native marker and the provider's typed lifecycle checker must
 both pass. A new Hub Machine marker is also required in every fresh log.
 Native Authority inspects actual self-Accorded imports in the controller Task,
 checks the immediate lender and object owner separately, and rejects unsupported
-hardware kinds. `prepare_supply` selects its actual target from the bound
+hardware kinds. `prepare_system_supply` selects its actual target from the bound
 System Prepared observation; Start requires every slot delivered.
-Hub's production `lease::Lease` derives a private local root from
-the controller's actual CPU Sign, then delivers one non-distributable TRIGGER
-Pend to the actual Driver Task. Repeated advancement returns the same token.
-Cancellation before submission closes without effects; an ancestor revocation
-between root creation and delivery must preserve responsibility until exact
-local-root absence is established. Final withdrawal occurs while the Driver
-is still alive and its next native trigger is denied. Every lease is explicitly
-finished, independently of Instance retirement. Exact owned completion clears
-only its slot Authorization bit; completed System retirement clears only
-Instance bits. Device bits remain retained (9 for two slots, 1 for the failure
-case), fake Device receipts are Unsupported and rebinding remains Busy.
+Hub's production `supply::Supply` derives a private local offering root, really
+Accords a distributable child to System, registers that System-local Pend, then
+installs a non-distributable TRIGGER Pend into the actual Prepared Driver Task.
+The Driver checks the immediate lender is System. Repeated preparation preserves
+the same IDs/token. A test-only wrapper discards one authenticated successful
+Install reply after the real native call; original-ID InspectInstall recovers
+it without a second installation. It never synthesizes successful receipts.
+Cancellation before effects closes locally; accepted work requires the exact
+Released installation, Closed source and native local-root retirement.
+An imported ancestor withdrawal while Prepared retains responsibility until
+all branches retire. Final withdrawal occurs while the running Driver is still
+alive and its next native trigger is denied. Each owner is explicitly finished,
+independently of Instance retirement. Direct Lease cancellation and ancestor
+revocation checks remain as separate native regressions.
+Exact owned completion clears only its slot Authorization bit; completed System
+retirement clears only Instance bits. Device bits remain retained (9 for two
+slots, 1 for the failure case), fake Device receipts are Unsupported and rebinding
+remains Busy. A mandatory `hub-system-supply` marker records registration,
+Prepared installation, lost reply recovery, cancellation, withdrawal and the
+actual System lender.
+
 Hub production code uses only
 public Kernel/System API and Client packages.
 
@@ -56,7 +68,7 @@ The local System checkout is optional; otherwise the runner clones the provider.
 It creates an ignored `target/system-<full-System-SHA>/` overlay, preserving
 older revision evidence; checks its exact revision; and uses the
 committed User lock. The overlay reuses the fixed System heap, Driver,
-packer and checker; it replaces the main controller with the Hub consumer and strengthens the
+packer and checker; it adds only the controller's Supply endpoint declaration, replaces the main controller with the Hub consumer, asserts the System lender and strengthens the
 Driver withdrawal probe to require native Sign Denied, rather than any non-Busy
 error.
 The provider runner is unchanged: its public `--scenarios handoff` selects
