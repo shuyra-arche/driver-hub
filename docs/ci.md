@@ -9,8 +9,9 @@ same pull request are cancelled; main-branch runs are kept. Classification has
 a five-minute bound, contracts has a 15-minute bound, and the existing handoff
 bound remains 20 minutes.
 
-The debug and release handoff jobs remain parallel and each runs all three Hart
-counts. Cargo download storage is cached by runner OS/architecture, toolchain,
+The debug and release handoff jobs remain parallel, but ordinary CI selects
+one Hart for each; multi-Hart qualification is explicitly invoked outside
+standard CI. Cargo download storage is cached by runner OS/architecture, toolchain,
 profile, all relevant lockfiles, pinned platform lock, and workflow contents.
 The separate platform target cache is keyed for the fixed System revision,
 release profile, RV64 target, lockfiles and workflow. Both caches have no
