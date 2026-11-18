@@ -129,7 +129,9 @@ requests, cancellation, retained retirement, allocation failure, exact codecs,
 reply routing and partial PCI effects. Scripted Authority/transport/configuration
 models do not prove real Pend delivery, hardware isolation or MMIO ordering.
 RV64 library compilation proves neither a runnable Unit nor QEMU execution.
-Vanllia owns the separate one/multi-Hart QEMU and hardware acceptance gates.
+Ordinary Hub CI runs the native consumer on one Hart. Multi-Hart qualifications
+remain explicitly invocable outside ordinary CI, while actual product and
+hardware acceptance have separate owners.
 
 The [native Instance consumer](tests/target/handoff/README.md) runs Hub's
 production Driver/Native coordinator against the fixed complete System in QEMU.
